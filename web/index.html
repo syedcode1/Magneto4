@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAGNETO V4 - Living Off The Land Attack Simulator</title>
+    <link rel="stylesheet" href="/css/matrix-theme.css">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Matrix Rain Background Canvas -->
+    <canvas id="matrix-canvas"></canvas>
+
+    <!-- Main Application Container -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo">
+                    <span class="logo-icon">M</span>
+                    <span class="logo-text">MAGNETO<span class="version">V4</span></span>
+                </div>
+                <span class="tagline">Living Off The Land Attack Simulator</span>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator" id="status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </div>
+                <button class="btn-icon" id="btn-settings" title="Settings">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Sidebar Navigation -->
+            <nav class="sidebar">
+                <ul class="nav-menu">
+                    <li class="nav-item active" data-view="dashboard">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                        <span>Dashboard</span>
+                    </li>
+                    <li class="nav-item" data-view="ttps">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        <span>TTPs</span>
+                    </li>
+                    <li class="nav-item" data-view="execute">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        <span>Execute</span>
+                    </li>
+                    <li class="nav-item" data-view="scheduler">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                        <span>Scheduler</span>
+                    </li>
+                    <li class="nav-item" data-view="users">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                        <span>Users</span>
+                    </li>
+                    <li class="nav-item" data-view="reports">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                        <span>Reports</span>
+                    </li>
+                </ul>
+
+                <div class="sidebar-footer">
+                    <div class="framework-badge">
+                        <span>MITRE ATT&CK</span>
+                        <span class="badge-version">v16.1</span>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Content Panel -->
+            <main class="content-panel">
+                <!-- Dashboard View -->
+                <div class="view active" id="view-dashboard">
+                    <div class="view-header">
+                        <h1>Dashboard</h1>
+                        <p>Welcome to MAGNETO V4 - Select a campaign or customize your attack simulation</p>
+                    </div>
+
+                    <div class="dashboard-grid">
+                        <!-- Quick Stats -->
+                        <div class="card stats-card">
+                            <h3>Attack Statistics</h3>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-value" id="stat-techniques">0</span>
+                                    <span class="stat-label">Techniques</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="stat-tactics">14</span>
+                                    <span class="stat-label">Tactics</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="stat-campaigns">7</span>
+                                    <span class="stat-label">APT Campaigns</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="stat-executions">0</span>
+                                    <span class="stat-label">Executions</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Execute -->
+                        <div class="card quick-execute-card">
+                            <h3>Quick Execute</h3>
+                            <div class="form-group">
+                                <label>APT Campaign</label>
+                                <select id="quick-campaign" class="select-input">
+                                    <option value="">Select Campaign...</option>
+                                    <option value="apt41">APT41 - Shadow Harvest</option>
+                                    <option value="lazarus">Lazarus - DEV#POPPER</option>
+                                    <option value="apt29">APT29 - GRAPELOADER</option>
+                                    <option value="apt28">APT28 - Fancy Bear</option>
+                                    <option value="fin7">FIN7 - Carbanak</option>
+                                    <option value="stealthfalcon">StealthFalcon - Project Raven</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Industry Vertical</label>
+                                <select id="quick-vertical" class="select-input">
+                                    <option value="">Select Vertical...</option>
+                                    <option value="financial">Financial Services</option>
+                                    <option value="healthcare">Healthcare</option>
+                                    <option value="energy">Energy & Utilities</option>
+                                    <option value="manufacturing">Manufacturing</option>
+                                    <option value="technology">Technology</option>
+                                    <option value="government">Government & Defense</option>
+                                    <option value="education">Education</option>
+                                    <option value="retail">Retail & Hospitality</option>
+                                    <option value="telecom">Telecommunications</option>
+                                    <option value="transportation">Transportation</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary btn-execute" id="btn-quick-execute">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                Execute Attack
+                            </button>
+                        </div>
+
+                        <!-- System Info -->
+                        <div class="card system-card">
+                            <h3>System Information</h3>
+                            <div class="system-info">
+                                <div class="info-row">
+                                    <span class="info-label">Hostname:</span>
+                                    <span class="info-value" id="sys-hostname">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">User:</span>
+                                    <span class="info-value" id="sys-user">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">OS:</span>
+                                    <span class="info-value" id="sys-os">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">PowerShell:</span>
+                                    <span class="info-value" id="sys-ps">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="card activity-card">
+                            <h3>Recent Activity</h3>
+                            <div class="activity-list" id="activity-list">
+                                <div class="activity-empty">No recent activity</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TTPs View -->
+                <div class="view" id="view-ttps">
+                    <div class="view-header">
+                        <h1>TTP Management</h1>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary" id="btn-import-ttps">Import</button>
+                            <button class="btn btn-primary" id="btn-add-ttp">+ Add TTP</button>
+                        </div>
+                    </div>
+
+                    <div class="search-bar">
+                        <input type="text" id="ttp-search" class="search-input" placeholder="Search techniques...">
+                        <select id="ttp-filter-tactic" class="select-input">
+                            <option value="">All Tactics</option>
+                        </select>
+                        <select id="ttp-filter-source" class="select-input">
+                            <option value="">All Sources</option>
+                            <option value="built-in">Built-in</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+
+                    <div class="ttp-table-container">
+                        <table class="ttp-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Tactic</th>
+                                    <th>Source</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ttp-table-body">
+                                <tr>
+                                    <td colspan="5" class="loading-cell">Loading techniques...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Execute View -->
+                <div class="view" id="view-execute">
+                    <div class="view-header">
+                        <h1>Execute Attack</h1>
+                        <p>Configure and execute attack simulation</p>
+                    </div>
+
+                    <div class="execute-container">
+                        <div class="execute-config">
+                            <div class="card">
+                                <h3>Execution Mode</h3>
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="exec-mode" value="campaign" checked>
+                                        <span>APT Campaign</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="exec-mode" value="vertical">
+                                        <span>Industry Vertical</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="exec-mode" value="tactic">
+                                        <span>By Tactic</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="exec-mode" value="custom">
+                                        <span>Custom Selection</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="exec-mode" value="all">
+                                        <span>All TTPs</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Campaign selector -->
+                            <div class="card" id="exec-campaign-card">
+                                <h3>Select Campaign</h3>
+                                <select id="exec-campaign" class="select-input">
+                                    <option value="">Select APT Campaign...</option>
+                                    <option value="apt41">APT41 - Shadow Harvest</option>
+                                    <option value="lazarus">Lazarus - DEV#POPPER</option>
+                                    <option value="apt29">APT29 - GRAPELOADER</option>
+                                    <option value="apt28">APT28 - Fancy Bear Ops</option>
+                                    <option value="fin7">FIN7 - Carbanak</option>
+                                    <option value="stealthfalcon">StealthFalcon - Raven</option>
+                                </select>
+                            </div>
+
+                            <!-- Vertical selector -->
+                            <div class="card" id="exec-vertical-card" style="display:none;">
+                                <h3>Select Industry</h3>
+                                <select id="exec-vertical" class="select-input">
+                                    <option value="">Select Industry Vertical...</option>
+                                    <option value="financial">Financial Services</option>
+                                    <option value="healthcare">Healthcare</option>
+                                    <option value="energy">Energy & Utilities</option>
+                                    <option value="manufacturing">Manufacturing</option>
+                                    <option value="technology">Technology</option>
+                                    <option value="government">Government & Defense</option>
+                                    <option value="education">Education</option>
+                                    <option value="retail">Retail & E-Commerce</option>
+                                    <option value="telecom">Telecommunications</option>
+                                    <option value="transportation">Transportation</option>
+                                </select>
+                            </div>
+
+                            <!-- Tactic selector -->
+                            <div class="card" id="exec-tactic-card" style="display:none;">
+                                <h3>Select Tactic</h3>
+                                <select id="exec-tactic" class="select-input">
+                                    <option value="">Select MITRE Tactic...</option>
+                                </select>
+                            </div>
+
+                            <!-- Custom technique selector -->
+                            <div class="card" id="exec-custom-card" style="display:none;">
+                                <h3>Select Techniques (<span id="selected-count">0</span> selected)</h3>
+                                <div class="technique-checklist" id="exec-technique-list" style="max-height: 300px; overflow-y: auto;">
+                                    <!-- Populated by JS -->
+                                </div>
+                                <div style="margin-top: 12px; display: flex; gap: 8px;">
+                                    <button class="btn btn-secondary btn-small" onclick="magnetoApp.selectAllTechniques()">Select All</button>
+                                    <button class="btn btn-secondary btn-small" onclick="magnetoApp.deselectAllTechniques()">Deselect All</button>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <h3>Execution Options</h3>
+                                <div class="form-group">
+                                    <label>Execute As</label>
+                                    <select id="exec-user" class="select-input">
+                                        <option value="current">Current User</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Delay Between TTPs (seconds)</label>
+                                    <input type="number" id="exec-delay" class="text-input" value="1" min="0" max="60">
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="exec-cleanup">
+                                        <span>Run cleanup after each technique</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="exec-report" checked>
+                                        <span>Generate HTML report</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary btn-execute btn-large" id="btn-execute">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                Execute Attack
+                            </button>
+
+                            <button class="btn btn-danger btn-large" id="btn-stop-execute" style="display:none; margin-top: 10px;">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                                Stop Execution
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scheduler View -->
+                <div class="view" id="view-scheduler">
+                    <div class="view-header">
+                        <h1>Attack Scheduler</h1>
+                        <div class="view-actions">
+                            <button class="btn btn-primary" id="btn-new-schedule">+ New Schedule</button>
+                        </div>
+                    </div>
+
+                    <div class="scheduler-content">
+                        <div class="card">
+                            <h3>Active Schedules</h3>
+                            <div class="schedule-list" id="schedule-list">
+                                <div class="schedule-empty">No schedules configured</div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3>Execution History</h3>
+                            <div class="history-list" id="history-list">
+                                <div class="history-empty">No execution history</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Users View -->
+                <div class="view" id="view-users">
+                    <div class="view-header">
+                        <h1>User Impersonation Pool</h1>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary" id="btn-test-users">Test All</button>
+                            <button class="btn btn-primary" id="btn-add-user">+ Add User</button>
+                        </div>
+                    </div>
+
+                    <div class="users-content">
+                        <div class="card">
+                            <table class="user-table">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Domain</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Last Used</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="user-table-body">
+                                    <tr>
+                                        <td colspan="6" class="empty-cell">No users configured</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports View -->
+                <div class="view" id="view-reports">
+                    <div class="view-header">
+                        <h1>Reports</h1>
+                        <div class="view-actions">
+                            <button class="btn btn-secondary" id="btn-open-folder">Open Folder</button>
+                        </div>
+                    </div>
+
+                    <div class="reports-content">
+                        <div class="reports-list-panel">
+                            <div class="card">
+                                <h3>Generated Reports</h3>
+                                <div class="reports-list" id="reports-list">
+                                    <div class="reports-empty">No reports generated</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="report-preview-panel">
+                            <div class="card">
+                                <h3>Report Preview</h3>
+                                <div class="report-preview" id="report-preview">
+                                    <div class="preview-placeholder">Select a report to preview</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Console Panel -->
+        <div class="console-panel" id="console-panel">
+            <div class="console-resize-handle" id="console-resize-handle" title="Drag to resize"></div>
+            <div class="console-header">
+                <div class="console-title">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 19V7H4v12h16m0-16c1.1 0 2 .9 2 2v14c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V5c0-1.1.9-2 2-2h16M7.5 12l3.5 3.5-1.42 1.42L4.67 12l4.91-4.92L11 8.5 7.5 12m6.58 3.5L12.67 14l3.5-3.5-3.5-3.5 1.42-1.42L19 10.5l-4.92 4.92z"/></svg>
+                    <span>Output Console</span>
+                    <span class="console-status" id="console-status">Disconnected</span>
+                </div>
+                <div class="console-controls">
+                    <button class="btn-icon btn-small" id="btn-console-clear" title="Clear Console">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                    <button class="btn-icon btn-small" id="btn-console-export" title="Export Log">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    </button>
+                    <button class="btn-icon btn-small" id="btn-console-pause" title="Pause">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </button>
+                    <button class="btn-icon btn-small btn-danger" id="btn-console-stop" title="Stop Execution">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                    </button>
+                    <button class="btn-icon btn-small" id="btn-console-toggle" title="Toggle Console">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="console-output" id="console-output">
+                <div class="console-line console-system">
+                    <span class="console-timestamp">[--:--:--]</span>
+                    <span class="console-message">Waiting for connection...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Container -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Modal Title</h2>
+                <button class="btn-icon" id="btn-modal-close">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </button>
+            </div>
+            <div class="modal-content" id="modal-content">
+                <!-- Dynamic content -->
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <!-- Dynamic buttons -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/matrix-rain.js"></script>
+    <script src="/js/websocket-client.js"></script>
+    <script src="/js/console.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

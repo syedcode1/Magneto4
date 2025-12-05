@@ -1,0 +1,229 @@
+[2025-12-04 17:27:34.821] [INFO] Server started on http://localhost:8080/
+[2025-12-04 17:27:35.854] [DEBUG] GET /
+[2025-12-04 17:27:35.886] [DEBUG] 200 OK: index.html
+[2025-12-04 17:27:36.059] [DEBUG] GET /css/matrix-theme.css
+[2025-12-04 17:27:36.067] [DEBUG] 200 OK: /css/matrix-theme.css
+[2025-12-04 17:27:36.219] [DEBUG] GET /js/matrix-rain.js
+[2025-12-04 17:27:36.224] [DEBUG] 200 OK: /js/matrix-rain.js
+[2025-12-04 17:27:36.381] [DEBUG] GET /js/websocket-client.js
+[2025-12-04 17:27:36.386] [DEBUG] 200 OK: /js/websocket-client.js
+[2025-12-04 17:27:36.550] [DEBUG] GET /js/console.js
+[2025-12-04 17:27:36.555] [DEBUG] 200 OK: /js/console.js
+[2025-12-04 17:27:36.719] [DEBUG] GET /js/app.js
+[2025-12-04 17:27:36.724] [DEBUG] 200 OK: /js/app.js
+[2025-12-04 17:27:36.889] [DEBUG] GET /ws
+[2025-12-04 17:27:36.906] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:27:36.912] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:27:37.065] [DEBUG] GET /api/status
+[2025-12-04 17:27:37.264] [DEBUG] GET /favicon.ico
+[2025-12-04 17:27:37.278] [WARN] 404 Not Found: /favicon.ico
+[2025-12-04 17:27:37.442] [DEBUG] GET /api/tactics
+[2025-12-04 17:27:37.599] [DEBUG] GET /api/techniques
+[2025-12-04 17:27:37.767] [DEBUG] GET /api/campaigns
+[2025-12-04 17:27:41.498] [DEBUG] GET /api/techniques
+[2025-12-04 17:27:45.478] [DEBUG] GET /api/reports
+[2025-12-04 17:28:28.263] [DEBUG] GET /api/techniques
+[2025-12-04 17:29:31.663] [DEBUG] GET /api/reports
+[2025-12-04 17:31:38.902] [DEBUG] GET /ws
+[2025-12-04 17:31:38.907] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:31:38.911] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:35:41.916] [DEBUG] GET /ws
+[2025-12-04 17:35:41.920] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:35:41.924] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:39:46.433] [DEBUG] GET /ws
+[2025-12-04 17:39:46.438] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:39:46.441] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:43:53.191] [DEBUG] GET /ws
+[2025-12-04 17:43:53.197] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:43:53.200] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:46:38.523] [DEBUG] GET /
+[2025-12-04 17:46:38.529] [DEBUG] 200 OK: index.html
+[2025-12-04 17:46:38.719] [DEBUG] GET /ws
+[2025-12-04 17:46:38.723] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:46:38.727] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:46:38.882] [DEBUG] GET /api/status
+[2025-12-04 17:46:39.042] [DEBUG] GET /api/tactics
+[2025-12-04 17:46:39.220] [DEBUG] GET /api/techniques
+[2025-12-04 17:46:39.411] [DEBUG] GET /api/campaigns
+[2025-12-04 17:47:07.827] [INFO] Server started on http://localhost:8080/
+[2025-12-04 17:47:08.697] [DEBUG] GET /
+[2025-12-04 17:47:08.725] [DEBUG] 200 OK: index.html
+[2025-12-04 17:47:08.947] [DEBUG] GET /ws
+[2025-12-04 17:47:08.963] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:47:08.970] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:47:09.113] [DEBUG] GET /api/status
+[2025-12-04 17:47:09.282] [DEBUG] GET /favicon.ico
+[2025-12-04 17:47:09.293] [WARN] 404 Not Found: /favicon.ico
+[2025-12-04 17:47:09.450] [DEBUG] GET /api/tactics
+[2025-12-04 17:47:09.620] [DEBUG] GET /api/techniques
+[2025-12-04 17:47:09.781] [DEBUG] GET /api/campaigns
+[2025-12-04 17:47:13.973] [DEBUG] GET /api/techniques
+[2025-12-04 17:48:27.675] [DEBUG] GET /api/techniques
+[2025-12-04 17:51:11.369] [DEBUG] GET /ws
+[2025-12-04 17:51:11.374] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:51:11.377] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:55:15.372] [DEBUG] GET /ws
+[2025-12-04 17:55:15.392] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 17:55:15.396] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 17:56:04.065] [INFO] Server started on http://localhost:8080/
+[2025-12-04 17:56:04.503] [DEBUG] GET /
+[2025-12-04 17:56:04.534] [DEBUG] 200 OK: index.html
+[2025-12-04 17:56:04.749] [DEBUG] GET /ws
+[2025-12-04 17:56:04.764] [INFO] WebSocket client connected: 68e8655c-203b-41da-8a77-9b0196bdd612
+[2025-12-04 18:03:53.253] [INFO] Server started on http://localhost:8080/
+[2025-12-04 18:03:53.715] [DEBUG] GET /
+[2025-12-04 18:03:53.747] [DEBUG] 200 OK: index.html
+[2025-12-04 18:03:54.003] [DEBUG] GET /ws
+[2025-12-04 18:03:54.020] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 18:03:54.026] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 18:03:54.181] [DEBUG] GET /api/status
+[2025-12-04 18:03:54.360] [DEBUG] GET /api/tactics
+[2025-12-04 18:03:54.524] [DEBUG] GET /api/techniques
+[2025-12-04 18:03:54.684] [DEBUG] GET /api/campaigns
+[2025-12-04 18:04:00.678] [DEBUG] GET /ws
+[2025-12-04 18:04:00.683] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 18:04:00.687] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 18:04:10.859] [DEBUG] GET /api/techniques
+[2025-12-04 18:04:16.922] [DEBUG] GET /
+[2025-12-04 18:04:16.927] [DEBUG] 200 OK: index.html
+[2025-12-04 18:04:17.108] [DEBUG] GET /api/status
+[2025-12-04 18:04:17.267] [DEBUG] GET /ws
+[2025-12-04 18:04:17.272] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 18:04:17.276] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 18:04:17.444] [DEBUG] GET /api/tactics
+[2025-12-04 18:04:17.598] [DEBUG] GET /api/techniques
+[2025-12-04 18:04:17.770] [DEBUG] GET /api/campaigns
+[2025-12-04 18:04:18.854] [DEBUG] GET /
+[2025-12-04 18:04:18.859] [DEBUG] 200 OK: index.html
+[2025-12-04 18:04:19.030] [DEBUG] GET /api/status
+[2025-12-04 18:04:19.180] [DEBUG] GET /ws
+[2025-12-04 18:04:19.185] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 18:04:19.188] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 18:04:19.341] [DEBUG] GET /api/tactics
+[2025-12-04 18:04:19.493] [DEBUG] GET /api/techniques
+[2025-12-04 18:04:19.673] [DEBUG] GET /api/campaigns
+[2025-12-04 18:05:16.284] [INFO] Server started on http://localhost:8080/
+[2025-12-04 18:05:17.123] [DEBUG] GET /
+[2025-12-04 18:05:17.158] [DEBUG] 200 OK: index.html
+[2025-12-04 18:05:17.386] [DEBUG] GET /ws
+[2025-12-04 18:05:17.403] [ERROR] WebSocket error: Exception calling "AcceptWebSocketAsync" with "1" argument(s): "Empty string is not a valid subprotocol value. Please use "null" to specify no value.
+Parameter name: subProtocol"
+[2025-12-04 18:05:17.410] [INFO] WebSocket client removed:  (Total clients: 0)
+[2025-12-04 18:05:17.572] [DEBUG] GET /api/status
+[2025-12-04 18:05:17.782] [DEBUG] GET /favicon.ico
+[2025-12-04 18:05:17.793] [WARN] 404 Not Found: /favicon.ico
+[2025-12-04 18:05:17.968] [DEBUG] GET /api/tactics
+[2025-12-04 18:05:18.124] [DEBUG] GET /api/techniques
+[2025-12-04 18:05:18.287] [DEBUG] GET /api/campaigns
+[2025-12-04 18:07:17.526] [ERROR] Failed to start server: Exception calling "Start" with "0" argument(s): "Failed to listen on prefix 'http://localhost:8080/' because it conflicts with an existing registration on the machine."
+[2025-12-04 18:07:17.600] [INFO] Server stopped
+[2025-12-04 18:09:01.209] [INFO] Server started on http://localhost:8080/
+[2025-12-04 18:09:02.063] [DEBUG] GET /
+[2025-12-04 18:09:02.089] [DEBUG] 200 OK: index.html
+[2025-12-04 18:09:02.315] [DEBUG] GET /ws
+[2025-12-04 18:09:02.328] [INFO] WebSocket client connected: 1701d25c-61d3-47c3-b7ec-c4af6217a980
+[2025-12-04 18:11:41.980] [INFO] WebSocket client disconnecting: 1701d25c-61d3-47c3-b7ec-c4af6217a980
+[2025-12-04 18:11:41.994] [INFO] WebSocket client removed: 1701d25c-61d3-47c3-b7ec-c4af6217a980 (Total clients: 0)
+[2025-12-04 18:11:42.156] [DEBUG] GET /api/techniques
+[2025-12-04 18:11:42.176] [ERROR] Error sending JSON response: Exception calling "Write" with "3" argument(s): "The specified network name is no longer available"
+[2025-12-04 18:11:42.333] [DEBUG] GET /api/techniques
+[2025-12-04 18:11:42.339] [ERROR] Error sending JSON response: Exception calling "Write" with "3" argument(s): "The specified network name is no longer available"
+[2025-12-04 18:11:42.504] [DEBUG] GET /api/status
+[2025-12-04 18:11:42.658] [DEBUG] GET /api/techniques
+[2025-12-04 18:11:42.664] [ERROR] Error sending JSON response: Exception calling "Write" with "3" argument(s): "The specified network name is no longer available"
+[2025-12-04 18:11:43.147] [DEBUG] GET /
+[2025-12-04 18:11:43.152] [DEBUG] 200 OK: index.html
+[2025-12-04 18:11:43.329] [DEBUG] GET /.well-known/appspecific/com.chrome.devtools.json
+[2025-12-04 18:11:43.342] [WARN] 404 Not Found: /.well-known/appspecific/com.chrome.devtools.json
+[2025-12-04 18:11:43.503] [DEBUG] GET /ws
+[2025-12-04 18:11:43.508] [INFO] WebSocket client connected: 42d407cc-2f39-4e10-b919-f7b5e1d74826
+[2025-12-04 18:14:01.479] [DEBUG] Received command from 42d407cc-2f39-4e10-b919-f7b5e1d74826 : stop
+[2025-12-04 18:15:12.353] [INFO] WebSocket client disconnecting: 42d407cc-2f39-4e10-b919-f7b5e1d74826
+[2025-12-04 18:15:12.359] [INFO] WebSocket client removed: 42d407cc-2f39-4e10-b919-f7b5e1d74826 (Total clients: 0)
+[2025-12-04 18:15:12.520] [DEBUG] GET /api/status
+[2025-12-04 18:15:12.685] [DEBUG] GET /favicon.ico
+[2025-12-04 18:15:12.689] [WARN] 404 Not Found: /favicon.ico
+[2025-12-04 18:15:12.849] [DEBUG] GET /api/techniques
+[2025-12-04 18:15:12.856] [ERROR] Error sending JSON response: Exception calling "Write" with "3" argument(s): "The specified network name is no longer available"
+[2025-12-04 18:15:13.517] [DEBUG] GET /
+[2025-12-04 18:15:13.522] [DEBUG] 200 OK: index.html
+[2025-12-04 18:15:13.702] [DEBUG] GET /.well-known/appspecific/com.chrome.devtools.json
+[2025-12-04 18:15:13.707] [WARN] 404 Not Found: /.well-known/appspecific/com.chrome.devtools.json
+[2025-12-04 18:15:13.881] [DEBUG] GET /ws
+[2025-12-04 18:15:13.886] [INFO] WebSocket client connected: 9ec08bfe-6a84-4b8f-82e4-3ba5b0dba9f8
+[2025-12-04 19:55:32.585] [INFO] WebSocket client disconnecting: 9ec08bfe-6a84-4b8f-82e4-3ba5b0dba9f8
+[2025-12-04 19:55:32.591] [INFO] WebSocket client removed: 9ec08bfe-6a84-4b8f-82e4-3ba5b0dba9f8 (Total clients: 0)
+[2025-12-04 19:55:51.223] [INFO] Server started on http://localhost:8080/
+[2025-12-04 19:55:52.100] [DEBUG] GET /
+[2025-12-04 19:55:52.132] [DEBUG] 200 OK: index.html
+[2025-12-04 19:55:52.303] [DEBUG] GET /css/matrix-theme.css
+[2025-12-04 19:55:52.312] [DEBUG] 200 OK: /css/matrix-theme.css
+[2025-12-04 19:55:52.498] [DEBUG] GET /js/matrix-rain.js
+[2025-12-04 19:55:52.503] [DEBUG] 200 OK: /js/matrix-rain.js
+[2025-12-04 19:55:52.663] [DEBUG] GET /js/websocket-client.js
+[2025-12-04 19:55:52.668] [DEBUG] 200 OK: /js/websocket-client.js
+[2025-12-04 19:55:52.828] [DEBUG] GET /js/console.js
+[2025-12-04 19:55:52.834] [DEBUG] 200 OK: /js/console.js
+[2025-12-04 19:55:52.997] [DEBUG] GET /js/app.js
+[2025-12-04 19:55:53.003] [DEBUG] 200 OK: /js/app.js
+[2025-12-04 19:55:53.206] [DEBUG] GET /ws
+[2025-12-04 19:55:53.250] [DEBUG] WebSocket handler started in background runspace
+[2025-12-04 19:55:53.424] [DEBUG] GET /api/status
+[2025-12-04 19:55:53.606] [DEBUG] GET /favicon.ico
+[2025-12-04 19:55:53.619] [WARN] 404 Not Found: /favicon.ico
+[2025-12-04 19:55:53.785] [DEBUG] GET /api/tactics
+[2025-12-04 19:55:53.958] [DEBUG] GET /api/techniques
+[2025-12-04 19:55:54.123] [DEBUG] GET /api/campaigns
+[2025-12-04 19:55:55.892] [DEBUG] GET /api/techniques
+[2025-12-04 19:56:26.265] [DEBUG] GET /api/techniques
+[2025-12-04 19:56:42.644] [DEBUG] GET /api/techniques
+[2025-12-04 19:57:02.273] [DEBUG] GET /api/reports
+[2025-12-04 23:25:24.148] [DEBUG] GET /api/techniques
+[2025-12-04 23:35:21.061] [DEBUG] POST /api/techniques
+[2025-12-04 23:35:21.317] [DEBUG] GET /api/techniques
+[2025-12-04 23:38:49.649] [DEBUG] GET /api/techniques
+[2025-12-04 23:54:07.065] [INFO] Server started on http://localhost:8080/
+[2025-12-04 23:54:07.968] [DEBUG] GET /
+[2025-12-04 23:54:07.999] [DEBUG] 200 OK: index.html
+[2025-12-04 23:54:08.159] [DEBUG] GET /css/matrix-theme.css
+[2025-12-04 23:54:08.177] [DEBUG] 200 OK: /css/matrix-theme.css
+[2025-12-04 23:54:08.340] [DEBUG] GET /js/matrix-rain.js
+[2025-12-04 23:54:08.345] [DEBUG] 200 OK: /js/matrix-rain.js
+[2025-12-04 23:54:08.512] [DEBUG] GET /js/websocket-client.js
+[2025-12-04 23:54:08.512] [DEBUG] 200 OK: /js/websocket-client.js
+[2025-12-04 23:54:08.683] [DEBUG] GET /js/console.js
+[2025-12-04 23:54:08.684] [DEBUG] 200 OK: /js/console.js
+[2025-12-04 23:54:08.846] [DEBUG] GET /js/app.js
+[2025-12-04 23:54:08.854] [DEBUG] 200 OK: /js/app.js
+[2025-12-04 23:54:09.025] [DEBUG] GET /ws
+[2025-12-04 23:54:09.067] [DEBUG] WebSocket handler started in background runspace
+[2025-12-04 23:54:09.252] [DEBUG] GET /api/status
+[2025-12-04 23:54:09.420] [DEBUG] GET /favicon.ico
+[2025-12-04 23:54:09.431] [WARN] 404 Not Found: /favicon.ico
+[2025-12-04 23:54:09.620] [DEBUG] GET /api/tactics
+[2025-12-04 23:54:09.786] [DEBUG] GET /api/techniques
+[2025-12-04 23:54:09.978] [DEBUG] GET /api/campaigns
+[2025-12-04 23:54:15.190] [DEBUG] GET /api/techniques
+[2025-12-04 23:54:20.516] [DEBUG] POST /api/execute/start
+[2025-12-04 23:55:07.765] [DEBUG] GET /api/reports
+[2025-12-04 23:55:13.553] [DEBUG] GET /api/techniques
+[2025-12-04 23:55:41.294] [DEBUG] POST /api/execute/start
+[2025-12-04 23:57:01.343] [DEBUG] GET /api/campaigns
+[2025-12-04 23:57:01.515] [DEBUG] POST /api/execute/start
+[2025-12-04 23:58:18.717] [DEBUG] POST /api/execute/start
+[2025-12-04 23:58:53.980] [DEBUG] POST /api/execute/start
+[2025-12-04 23:59:41.350] [DEBUG] POST /api/execute/start
+[2025-12-04 23:59:58.983] [DEBUG] POST /api/execute/start

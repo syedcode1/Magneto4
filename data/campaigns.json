@@ -1,0 +1,262 @@
+{
+  "version": "4.0.0",
+  "lastUpdated": "2024-12-04T00:00:00Z",
+  "aptCampaigns": [
+    {
+      "id": "apt41",
+      "name": "APT41",
+      "campaignName": "Shadow Harvest",
+      "description": "Chinese state-sponsored group focusing on espionage and financial gain. Known for dual mission: state-sponsored espionage and financially motivated attacks.",
+      "attribution": "China (MSS)",
+      "aliases": ["Double Dragon", "Winnti", "Barium", "Wicked Panda"],
+      "primaryTargets": ["Technology", "Healthcare", "Telecommunications", "Financial Services", "Gaming"],
+      "techniques": ["T1049", "T1087.001", "T1218.011", "T1546.015", "T1055.100", "T1550.002", "T1021.002", "T1041"],
+      "timingProfile": "methodical",
+      "c2Style": "SharePoint/O365",
+      "threatLevel": "critical",
+      "active": true
+    },
+    {
+      "id": "lazarus",
+      "name": "Lazarus Group",
+      "campaignName": "DEV#POPPER",
+      "description": "North Korean state-sponsored group targeting financial institutions and cryptocurrency exchanges. Known for sophisticated supply chain attacks and financial theft.",
+      "attribution": "North Korea (RGB)",
+      "aliases": ["Hidden Cobra", "Zinc", "APT38", "Guardians of Peace"],
+      "primaryTargets": ["Financial Services", "Cryptocurrency", "Defense", "Entertainment"],
+      "techniques": ["T1574.002", "T1053.005", "T1003.003", "T1021.002", "T1560.002"],
+      "timingProfile": "methodical",
+      "c2Style": "Dropbox",
+      "threatLevel": "critical",
+      "active": true
+    },
+    {
+      "id": "apt29",
+      "name": "APT29",
+      "campaignName": "GRAPELOADER",
+      "description": "Russian SVR group focusing on government and diplomatic targets. Known for long-term stealthy operations and sophisticated tradecraft.",
+      "attribution": "Russia (SVR)",
+      "aliases": ["Cozy Bear", "The Dukes", "YTTRIUM", "Iron Hemlock"],
+      "primaryTargets": ["Government", "Diplomatic", "Think Tanks", "Healthcare"],
+      "techniques": ["T1546.015", "T1053.005", "T1134.001", "T1070.004"],
+      "timingProfile": "patient",
+      "c2Style": "OneDrive",
+      "threatLevel": "critical",
+      "active": true
+    },
+    {
+      "id": "apt28",
+      "name": "APT28",
+      "campaignName": "Fancy Bear Operations",
+      "description": "Russian GRU group targeting government, military, and political organizations. Known for aggressive operations and election interference.",
+      "attribution": "Russia (GRU)",
+      "aliases": ["Fancy Bear", "Sofacy", "Sednit", "STRONTIUM", "Iron Twilight"],
+      "primaryTargets": ["Government", "Military", "Political Organizations", "Media"],
+      "techniques": ["T1059.001", "T1548.002", "T1021.002"],
+      "timingProfile": "persistent",
+      "c2Style": "HTTPS",
+      "threatLevel": "critical",
+      "active": true
+    },
+    {
+      "id": "fin7",
+      "name": "FIN7",
+      "campaignName": "Carbanak Operations",
+      "description": "Financially motivated cybercrime group targeting retail, hospitality, and financial sectors. Known for point-of-sale attacks and payment card theft.",
+      "attribution": "Eastern Europe (Criminal)",
+      "aliases": ["Carbanak", "Carbon Spider", "Anunak"],
+      "primaryTargets": ["Retail", "Hospitality", "Financial Services", "Restaurant Chains"],
+      "techniques": ["T1059.001", "T1105", "T1543.003"],
+      "timingProfile": "aggressive",
+      "c2Style": "DNS",
+      "threatLevel": "high",
+      "active": true
+    },
+    {
+      "id": "stealthfalcon",
+      "name": "StealthFalcon",
+      "campaignName": "Project Raven",
+      "description": "Middle Eastern threat actor targeting journalists, activists, and dissidents. Known for surveillance operations and spyware deployment.",
+      "attribution": "UAE",
+      "aliases": ["FruityArmor"],
+      "primaryTargets": ["Journalists", "Activists", "Dissidents", "Human Rights Organizations"],
+      "techniques": ["T1548.002", "T1027", "T1112"],
+      "timingProfile": "targeted",
+      "c2Style": "CustomHTTPS",
+      "threatLevel": "high",
+      "active": true
+    }
+  ],
+  "industryVerticals": [
+    {
+      "id": "financial",
+      "name": "Financial Services & Banking",
+      "description": "Banks, financial institutions, cryptocurrency exchanges, payment processors, FinTech companies",
+      "riskProfile": "Critical",
+      "primaryThreats": [
+        "Financial theft",
+        "Ransomware",
+        "Data breach for fraud",
+        "Wire transfer fraud",
+        "Cryptocurrency theft"
+      ],
+      "aptGroups": ["Lazarus", "FIN7", "APT38", "Carbanak"],
+      "techniques": ["T1087.001", "T1003.003", "T1550.002", "T1021.002", "T1560.002", "T1041", "T1048.003", "T1486", "T1490", "T1489"],
+      "topTactics": ["Credential Access", "Lateral Movement", "Exfiltration", "Impact"],
+      "complianceFrameworks": ["PCI-DSS", "SOX", "GLBA", "FFIEC"]
+    },
+    {
+      "id": "healthcare",
+      "name": "Healthcare & Hospitals",
+      "description": "Hospitals, healthcare providers, medical equipment manufacturers, pharmaceutical companies",
+      "riskProfile": "Critical",
+      "primaryThreats": [
+        "Ransomware",
+        "Patient data theft",
+        "Medical device compromise",
+        "Research IP theft",
+        "Service disruption"
+      ],
+      "aptGroups": ["APT41", "FIN7", "LockBit", "ALPHV/BlackCat"],
+      "techniques": ["T1566.001", "T1078", "T1021.001", "T1486", "T1490", "T1489", "T1048.003", "T1005", "T1560.001"],
+      "topTactics": ["Initial Access", "Persistence", "Impact", "Exfiltration"],
+      "complianceFrameworks": ["HIPAA", "HITECH", "FDA 21 CFR Part 11"]
+    },
+    {
+      "id": "energy",
+      "name": "Energy, Oil & Gas, Utilities",
+      "description": "Power generation, oil/gas, water treatment, electric utilities, renewable energy",
+      "riskProfile": "Critical Infrastructure",
+      "primaryThreats": [
+        "ICS/SCADA compromise",
+        "Physical infrastructure damage",
+        "Service disruption",
+        "Espionage",
+        "Supply chain attacks"
+      ],
+      "aptGroups": ["APT33", "APT28", "APT29", "Dragonfly", "Chernovite"],
+      "techniques": ["T1190", "T1133", "T1078", "T1082", "T1018", "T1046", "T1021.002", "T1490", "T1489", "T1529"],
+      "topTactics": ["Initial Access", "Discovery", "Lateral Movement", "Impact"],
+      "complianceFrameworks": ["NERC CIP", "IEC 62443", "NIST CSF"]
+    },
+    {
+      "id": "manufacturing",
+      "name": "Manufacturing & Industrial (OT/ICS)",
+      "description": "Industrial control systems, manufacturing plants, supply chain, smart factories",
+      "riskProfile": "Critical",
+      "primaryThreats": [
+        "Production disruption",
+        "ICS/PLC compromise",
+        "IP/trade secret theft",
+        "Supply chain attacks",
+        "Sabotage"
+      ],
+      "aptGroups": ["APT41", "APT28", "Chernovite"],
+      "techniques": ["T1190", "T1078", "T1082", "T1083", "T1021.002", "T1005", "T1074.001", "T1041", "T1486", "T1489"],
+      "topTactics": ["Collection", "Exfiltration", "Impact", "Lateral Movement"],
+      "complianceFrameworks": ["IEC 62443", "NIST 800-82", "ISO 27001"]
+    },
+    {
+      "id": "technology",
+      "name": "Technology & Software",
+      "description": "Software companies, cloud providers, SaaS, IT services, telecommunications technology",
+      "riskProfile": "High",
+      "primaryThreats": [
+        "Supply chain compromise",
+        "Source code theft",
+        "Customer data breach",
+        "Cloud infrastructure attacks",
+        "Intellectual property theft"
+      ],
+      "aptGroups": ["APT29", "APT41", "APT28"],
+      "techniques": ["T1059.001", "T1078", "T1087.001", "T1082", "T1083", "T1005", "T1041", "T1048.003"],
+      "topTactics": ["Initial Access", "Credential Access", "Collection", "Exfiltration"],
+      "complianceFrameworks": ["SOC 2", "ISO 27001", "GDPR"]
+    },
+    {
+      "id": "government",
+      "name": "Government & Defense",
+      "description": "Federal/state/local government, defense contractors, military, intelligence agencies",
+      "riskProfile": "Critical",
+      "primaryThreats": [
+        "Nation-state espionage",
+        "Classified data theft",
+        "Political manipulation",
+        "Critical infrastructure targeting",
+        "APT campaigns"
+      ],
+      "aptGroups": ["APT29", "APT28", "APT41", "Lazarus"],
+      "techniques": ["T1566.001", "T1078", "T1003.003", "T1087.001", "T1021.002", "T1041", "T1020", "T1074.001"],
+      "topTactics": ["Initial Access", "Credential Access", "Lateral Movement", "Exfiltration"],
+      "complianceFrameworks": ["FISMA", "FedRAMP", "NIST 800-53", "CMMC"]
+    },
+    {
+      "id": "education",
+      "name": "Education & Academia",
+      "description": "Universities, K-12 schools, research institutions, educational technology",
+      "riskProfile": "Medium-High",
+      "primaryThreats": [
+        "Research IP theft",
+        "Student data breach",
+        "Ransomware",
+        "Credential harvesting",
+        "Grant/research fraud"
+      ],
+      "aptGroups": ["APT41", "APT29"],
+      "techniques": ["T1566.001", "T1078", "T1087.001", "T1083", "T1005", "T1486"],
+      "topTactics": ["Initial Access", "Credential Access", "Collection", "Impact"],
+      "complianceFrameworks": ["FERPA", "GDPR", "PCI-DSS"]
+    },
+    {
+      "id": "retail",
+      "name": "Retail, Hospitality & E-Commerce",
+      "description": "Retail stores, restaurants, hotels, e-commerce platforms, point-of-sale systems",
+      "riskProfile": "High",
+      "primaryThreats": [
+        "Payment card theft",
+        "POS malware",
+        "Customer data breach",
+        "E-commerce fraud",
+        "Ransomware"
+      ],
+      "aptGroups": ["FIN7", "Carbanak"],
+      "techniques": ["T1566.001", "T1078", "T1003.003", "T1005", "T1041", "T1486"],
+      "topTactics": ["Credential Access", "Collection", "Exfiltration", "Impact"],
+      "complianceFrameworks": ["PCI-DSS", "GDPR", "CCPA"]
+    },
+    {
+      "id": "telecom",
+      "name": "Telecommunications & ISPs",
+      "description": "Telecom providers, ISPs, mobile carriers, network infrastructure, 5G providers",
+      "riskProfile": "Critical Infrastructure",
+      "primaryThreats": [
+        "Network infrastructure attacks",
+        "Customer data theft",
+        "Service disruption",
+        "Supply chain compromise",
+        "Espionage"
+      ],
+      "aptGroups": ["APT28", "APT29", "APT41"],
+      "techniques": ["T1190", "T1133", "T1078", "T1018", "T1046", "T1021.002", "T1005", "T1020", "T1489"],
+      "topTactics": ["Initial Access", "Discovery", "Collection", "Impact"],
+      "complianceFrameworks": ["NIST CSF", "ISO 27001", "GDPR"]
+    },
+    {
+      "id": "transportation",
+      "name": "Transportation & Logistics",
+      "description": "Airlines, shipping, rail, logistics companies, supply chain management",
+      "riskProfile": "Critical Infrastructure",
+      "primaryThreats": [
+        "Operational disruption",
+        "Supply chain attacks",
+        "Customer data theft",
+        "Ransomware",
+        "Safety system compromise"
+      ],
+      "aptGroups": ["APT41", "APT28"],
+      "techniques": ["T1190", "T1078", "T1082", "T1083", "T1021.002", "T1005", "T1486", "T1489", "T1490"],
+      "topTactics": ["Initial Access", "Persistence", "Impact", "Collection"],
+      "complianceFrameworks": ["TSA Security Directives", "IMO Guidelines", "ISO 27001"]
+    }
+  ]
+}

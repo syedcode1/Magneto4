@@ -1,0 +1,838 @@
+﻿{
+    "frameworkVersion":  "MITRE ATT\u0026CK v16.1",
+    "version":  "4.0.0",
+    "techniques":  [
+                       {
+                           "id":  "T1046",
+                           "name":  "Network Service Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "netstat -ano | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Network service scanning is a key reconnaissance indicator that precedes exploitation. UEBA can detect port scanning tools and built-in utilities used for service enumeration.",
+                                               "realWorldUsage":  "APT41, Iranian Chafer APT, Naikon APT, and Lebanese Cedar APT use netstat and port scanners to map network topology and identify vulnerable services."
+                                           }
+                       },
+                       {
+                           "id":  "T1087.001",
+                           "name":  "Account Discovery: Local Account",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "net user | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Local account enumeration reveals potential targets for credential theft or privilege escalation. Unusual account queries from non-admin users are suspicious.",
+                                               "realWorldUsage":  "Used by virtually all threat actors during reconnaissance phase to identify privileged accounts and service accounts."
+                                           }
+                       },
+                       {
+                           "id":  "T1059.001",
+                           "name":  "Command and Scripting Interpreter: PowerShell",
+                           "tactic":  "Execution",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "powershell.exe -Command \"Get-Process\" | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "PowerShell is the most commonly abused execution method. Monitor for encoded commands, download cradles, and suspicious script execution patterns.",
+                                               "realWorldUsage":  "Used by APT29, APT41, FIN7, Lazarus, and virtually all modern threat actors. Cobalt Strike and other C2 frameworks heavily utilize PowerShell."
+                                           }
+                       },
+                       {
+                           "id":  "T1543.003",
+                           "name":  "Create or Modify System Process: Windows Service",
+                           "tactic":  "Persistence",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "sc.exe create MagnetoSvc_$([guid]::NewGuid().ToString().Substring(0,8)) binPath= \"cmd.exe /c echo Simulated\" start= demand | Out-Null",
+                           "cleanupCommand":  "sc.exe delete MagnetoSvc_* 2\u003e$null",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Malicious service creation is a high-confidence persistence indicator. Monitor Event IDs 4697 and 7045 for suspicious service installations.",
+                                               "realWorldUsage":  "Used by Cobalt Strike, APT41, CARBANAK, GREYENERGY, and ransomware groups like DoppelPaymer and AvosLocker."
+                                           }
+                       },
+                       {
+                           "id":  "T1562.001",
+                           "name":  "Impair Defenses: Disable Windows Defender",
+                           "tactic":  "Defense Evasion",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "Set-MpPreference -ExclusionPath \"C:\\Windows\\Temp\\MagnetoTest\" -ErrorAction SilentlyContinue",
+                           "cleanupCommand":  "Remove-MpPreference -ExclusionPath \"C:\\Windows\\Temp\\MagnetoTest\" -ErrorAction SilentlyContinue",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Defender exclusion modifications are high-priority alerts. Attackers add exclusions to allow malware execution in specific paths.",
+                                               "realWorldUsage":  "Common technique across ransomware operations including Conti, LockBit, and BlackCat. Also used by APT groups for stealth."
+                                           }
+                       },
+                       {
+                           "id":  "T1070.004",
+                           "name":  "Indicator Removal: File Deletion",
+                           "tactic":  "Defense Evasion",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$testFile = \"$env:TEMP\\magneto_test_$(Get-Random).tmp\"; Set-Content -Path $testFile -Value \u0027test\u0027; Remove-Item -Path $testFile -Force",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "File deletion patterns can indicate evidence destruction. Monitor for bulk deletions, log clearing, and removal of security tool artifacts.",
+                                               "realWorldUsage":  "APT29 (GRAPELOADER), APT28, and most threat actors delete tools and logs post-compromise to hinder forensic analysis."
+                                           }
+                       },
+                       {
+                           "id":  "T1003.003",
+                           "name":  "OS Credential Dumping: NTDS",
+                           "tactic":  "Credential Access",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  true,
+                           "command":  "ntdsutil.exe \"ac i ntds\" \"ifm\" \"create full C:\\Windows\\Temp\\MagnetoNTDS\" q q 2\u003e$null",
+                           "cleanupCommand":  "Remove-Item -Path \"C:\\Windows\\Temp\\MagnetoNTDS\" -Recurse -Force -ErrorAction SilentlyContinue",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "NTDS.dit extraction enables offline cracking of all domain passwords. This is a critical alert requiring immediate response.",
+                                               "realWorldUsage":  "Lazarus (DEV#POPPER), APT29, APT28, and virtually all APT groups targeting domain environments extract NTDS.dit for credential access."
+                                           }
+                       },
+                       {
+                           "id":  "T1049",
+                           "name":  "System Network Connections Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-NetTCPConnection | Select-Object -First 10 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Network connection enumeration reveals active communications and potential lateral movement paths. Unusual queries from workstations are suspicious.",
+                                               "realWorldUsage":  "APT41 (Shadow Harvest) uses this for network reconnaissance to identify connected systems and active services."
+                                           }
+                       },
+                       {
+                           "id":  "T1016",
+                           "name":  "System Network Configuration Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "ipconfig /all | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Network configuration enumeration is standard reconnaissance. Multiple rapid queries or queries from unusual contexts are suspicious.",
+                                               "realWorldUsage":  "Universal technique used by all threat actors to understand network topology, DNS servers, and gateway information."
+                                           }
+                       },
+                       {
+                           "id":  "T1033",
+                           "name":  "System Owner/User Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "whoami /all | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "User context enumeration helps attackers understand privileges and plan escalation. Unusual whoami calls can indicate compromise.",
+                                               "realWorldUsage":  "Every threat actor uses this technique immediately after initial access to understand their current privilege level."
+                                           }
+                       },
+                       {
+                           "id":  "T1053.005",
+                           "name":  "Scheduled Task/Job: Scheduled Task",
+                           "tactic":  "Persistence",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "schtasks /create /tn \"MagnetoTask_$(Get-Random)\" /tr \"cmd /c echo test\" /sc onlogon /f | Out-Null",
+                           "cleanupCommand":  "schtasks /delete /tn \"MagnetoTask_*\" /f 2\u003e$null",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Scheduled task creation is a common persistence mechanism. Monitor for tasks with suspicious triggers, paths, or created by unusual users.",
+                                               "realWorldUsage":  "Lazarus (DEV#POPPER), APT29, and ransomware groups use scheduled tasks for persistence and delayed execution."
+                                           }
+                       },
+                       {
+                           "id":  "T1574.002",
+                           "name":  "Hijack Execution Flow: DLL Side-Loading",
+                           "tactic":  "Execution",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "[System.Reflection.Assembly]::LoadWithPartialName(\u0027System.Core\u0027) | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "DLL side-loading abuses trusted applications to load malicious DLLs. Monitor for DLL loads from unusual paths alongside legitimate executables.",
+                                               "realWorldUsage":  "Lazarus (DEV#POPPER) and APT41 frequently use DLL side-loading with signed applications like legitimate software installers."
+                                           }
+                       },
+                       {
+                           "id":  "T1021.002",
+                           "name":  "Remote Services: SMB/Windows Admin Shares",
+                           "tactic":  "Lateral Movement",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "net share | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "SMB share enumeration and access is key for lateral movement. Monitor for unusual share access patterns and admin share connections.",
+                                               "realWorldUsage":  "APT41, APT28, Lazarus, and virtually all threat actors use SMB for lateral movement via admin shares (C$, ADMIN$)."
+                                           }
+                       },
+                       {
+                           "id":  "T1550.002",
+                           "name":  "Use Alternate Authentication Material: Pass the Hash",
+                           "tactic":  "Credential Access",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-WmiObject Win32_LogonSession | Select-Object -First 5 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Pass-the-Hash bypasses password requirements using NTLM hashes. Monitor for NTLM authentication anomalies and logon type patterns.",
+                                               "realWorldUsage":  "APT41 (Shadow Harvest) and most APT groups use Pass-the-Hash with tools like Mimikatz for lateral movement."
+                                           }
+                       },
+                       {
+                           "id":  "T1112",
+                           "name":  "Modify Registry",
+                           "tactic":  "Defense Evasion",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$regPath = \u0027HKCU:\\Software\\MagnetoTest\u0027; New-Item -Path $regPath -Force | Out-Null; Remove-Item -Path $regPath -Force",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Registry modifications can establish persistence, disable security, or store malware. Monitor sensitive registry locations.",
+                                               "realWorldUsage":  "StealthFalcon (Project Raven) and many threat actors modify registry for persistence and to disable security features."
+                                           }
+                       },
+                       {
+                           "id":  "T1136.001",
+                           "name":  "Create Account: Local Account",
+                           "tactic":  "Persistence",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "net user MagnetoTestUser P@ssw0rd123! /add 2\u003e$null; net user MagnetoTestUser /delete 2\u003e$null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Local account creation for backdoor access is a critical indicator. Monitor Event ID 4720 for account creation outside normal processes.",
+                                               "realWorldUsage":  "Ransomware operators and APT groups create local admin accounts for persistent backdoor access."
+                                           }
+                       },
+                       {
+                           "id":  "T1027",
+                           "name":  "Obfuscated Files or Information",
+                           "tactic":  "Defense Evasion",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(\u0027test\u0027)); [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded)) | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Base64 encoding and other obfuscation techniques hide malicious payloads. Monitor for encoded PowerShell commands and suspicious encoding patterns.",
+                                               "realWorldUsage":  "StealthFalcon (Project Raven) and virtually all threat actors use encoding to evade signature-based detection."
+                                           }
+                       },
+                       {
+                           "id":  "T1548.002",
+                           "name":  "Abuse Elevation Control Mechanism: UAC Bypass",
+                           "tactic":  "Privilege Escalation",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-ItemProperty \u0027HKCU:\\Software\\Classes\\ms-settings\\shell\\open\\command\u0027 -ErrorAction SilentlyContinue | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "UAC bypass attempts indicate privilege escalation. Monitor for modifications to auto-elevate registry keys and fodhelper/eventvwr abuse.",
+                                               "realWorldUsage":  "StealthFalcon, APT28, and many threat actors use UAC bypass techniques for privilege escalation without triggering UAC prompts."
+                                           }
+                       },
+                       {
+                           "id":  "T1134.001",
+                           "name":  "Access Token Manipulation: Token Impersonation",
+                           "tactic":  "Privilege Escalation",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "[System.Security.Principal.WindowsIdentity]::GetCurrent() | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Token manipulation enables privilege escalation and impersonation. Monitor for unusual token operations and process creation with different tokens.",
+                                               "realWorldUsage":  "APT29 (GRAPELOADER) uses token manipulation for privilege escalation and to impersonate higher-privileged users."
+                                           }
+                       },
+                       {
+                           "id":  "T1547.010",
+                           "name":  "Boot or Logon Autostart Execution: Port Monitors",
+                           "tactic":  "Persistence",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "Get-ItemProperty \u0027HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\u0027 -ErrorAction SilentlyContinue | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Port monitor persistence is stealthy and rarely used legitimately. Any modifications to print monitor registry keys are highly suspicious.",
+                                               "realWorldUsage":  "Advanced threat actors use port monitors for persistence as they are rarely monitored and execute with SYSTEM privileges."
+                                           }
+                       },
+                       {
+                           "id":  "T1557.001",
+                           "name":  "Adversary-in-the-Middle: LLMNR/NBT-NS Poisoning",
+                           "tactic":  "Credential Access",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-NetAdapter | Select-Object Name, Status | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "LLMNR/NBT-NS poisoning captures credentials on the network. Monitor for tools like Responder and unusual broadcast traffic patterns.",
+                                               "realWorldUsage":  "Common penetration testing technique also used by threat actors for credential harvesting in enterprise environments."
+                                           }
+                       },
+                       {
+                           "id":  "T1202",
+                           "name":  "Indirect Command Execution",
+                           "tactic":  "Execution",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "forfiles /P C:\\Windows /M notepad.exe /C \"cmd /c echo test\" 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Indirect execution via forfiles, pcalua, and other LOLBins bypasses application whitelisting. Monitor for unusual parent-child process relationships.",
+                                               "realWorldUsage":  "Used by sophisticated threat actors to evade application control solutions and endpoint detection."
+                                           }
+                       },
+                       {
+                           "id":  "T1105",
+                           "name":  "Ingress Tool Transfer",
+                           "tactic":  "Command and Control",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "(New-Object Net.WebClient).DownloadString(\u0027http://localhost/test\u0027) 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Tool transfer indicates active C2 communication. Monitor for unusual download patterns, especially to temp directories or using encoded URLs.",
+                                               "realWorldUsage":  "FIN7 (Carbanak) and virtually all threat actors use various methods to transfer tools post-compromise."
+                                           }
+                       },
+                       {
+                           "id":  "T1218.011",
+                           "name":  "System Binary Proxy Execution: Rundll32",
+                           "tactic":  "Defense Evasion",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "rundll32.exe javascript:\"\\..\\mshtml,RunHTMLApplication\";alert(\u0027test\u0027) 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Rundll32 abuse for script execution bypasses security controls. Monitor for unusual rundll32 command lines and child processes.",
+                                               "realWorldUsage":  "APT41 (Shadow Harvest) and many threat actors abuse rundll32 for fileless execution and defense evasion."
+                                           }
+                       },
+                       {
+                           "id":  "T1041",
+                           "name":  "Exfiltration Over C2 Channel",
+                           "tactic":  "Exfiltration",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$data = Get-Process | Select-Object -First 5 | ConvertTo-Json; $data | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Data exfiltration over C2 is the final attack stage. Monitor for unusual data volumes over established C2 channels.",
+                                               "realWorldUsage":  "APT41 (Shadow Harvest) exfiltrates data over the same channels used for command and control to blend with normal traffic."
+                                           }
+                       },
+                       {
+                           "id":  "T1055.100",
+                           "name":  "EPM Poisoning Simulation",
+                           "tactic":  "Privilege Escalation",
+                           "source":  "built-in",
+                           "aptGroup":  "APT41",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "Get-WmiObject Win32_Process -Filter \"Name=\u0027svchost.exe\u0027\" | Select-Object -First 3 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "EPM poisoning is an advanced RPC hijacking technique. Monitor for unusual RPC endpoint registration and abnormal RPC traffic patterns.",
+                                               "realWorldUsage":  "APT41 Shadow Harvest campaign exploits EPM poisoning for NTLM relay attacks against SYSTEM-level services."
+                                           }
+                       },
+                       {
+                           "id":  "T1546.015",
+                           "name":  "Event Triggered Execution: WMI Event Subscription",
+                           "tactic":  "Persistence",
+                           "source":  "built-in",
+                           "aptGroup":  "APT29",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "Get-WmiObject -Namespace root\\subscription -Class __EventFilter -ErrorAction SilentlyContinue | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "WMI event subscriptions provide fileless persistence. Monitor WMI activity and __EventFilter, __EventConsumer, __FilterToConsumerBinding classes.",
+                                               "realWorldUsage":  "APT29 (POSHSPY backdoor) and APT41 use WMI subscriptions for persistent, fileless backdoor access."
+                                           }
+                       },
+                       {
+                           "id":  "T1560.002",
+                           "name":  "Archive Collected Data: Archive via Library",
+                           "tactic":  "Collection",
+                           "source":  "built-in",
+                           "aptGroup":  "Lazarus",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Compress-Archive -Path $env:TEMP -DestinationPath \"$env:TEMP\\magneto_test.zip\" -Force -ErrorAction SilentlyContinue; Remove-Item \"$env:TEMP\\magneto_test.zip\" -Force -ErrorAction SilentlyContinue",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Data compression before exfiltration is a common pattern. Monitor for archive creation in staging directories and unusual compression activity.",
+                                               "realWorldUsage":  "Lazarus (DEV#POPPER) compresses collected data using RAR and ZIP before exfiltration to reduce transfer size."
+                                           }
+                       },
+                       {
+                           "id":  "T1102.002",
+                           "name":  "Web Service: Bidirectional Communication",
+                           "tactic":  "Command and Control",
+                           "source":  "built-in",
+                           "aptGroup":  "APT41",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Test-NetConnection outlook.office365.com -Port 443 -WarningAction SilentlyContinue | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "C2 over legitimate web services evades network filtering. Monitor for unusual patterns in cloud service traffic (O365, SharePoint, etc.).",
+                                               "realWorldUsage":  "APT41 (Shadow Harvest) uses SharePoint and O365 for C2 communication to blend with legitimate enterprise traffic."
+                                           }
+                       },
+                       {
+                           "id":  "T1218.010",
+                           "name":  "System Binary Proxy Execution: Regsvr32",
+                           "tactic":  "Execution",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "regsvr32 /s /n /u scrobj.dll 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Regsvr32 abuse (Squiblydoo) enables script execution bypassing AppLocker. Monitor for regsvr32 with network or script URLs.",
+                                               "realWorldUsage":  "APT28 and other threat actors use regsvr32 with scriptlet files (.sct) for fileless execution."
+                                           }
+                       },
+                       {
+                           "id":  "T1197",
+                           "name":  "BITS Jobs",
+                           "tactic":  "Execution",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "bitsadmin /list /allusers 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "BITS jobs can transfer files stealthily and persist across reboots. Monitor for unusual BITS jobs and transfers from suspicious URLs.",
+                                               "realWorldUsage":  "APT groups use BITS for stealthy file transfers that survive reboots and blend with Windows Update traffic."
+                                           }
+                       },
+                       {
+                           "id":  "T1482",
+                           "name":  "Domain Trust Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  true,
+                           "command":  "nltest /domain_trusts 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Domain trust enumeration reveals paths for cross-domain attacks. Monitor for nltest and AD trust queries from unusual sources.",
+                                               "realWorldUsage":  "APT groups enumerate trusts to identify paths for lateral movement between trusted domains in enterprise environments."
+                                           }
+                       },
+                       {
+                           "id":  "T1518.001",
+                           "name":  "Software Discovery: Security Software",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like \u0027*security*\u0027 -or $_.Name -like \u0027*antivirus*\u0027 } | Select-Object -First 5 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Security software enumeration helps attackers plan evasion. Monitor for queries targeting AV, EDR, and security tool processes.",
+                                               "realWorldUsage":  "All sophisticated threat actors enumerate security tools before deploying payloads to select appropriate evasion techniques."
+                                           }
+                       },
+                       {
+                           "id":  "T1063",
+                           "name":  "Security Software Discovery: Firewall",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-NetFirewallProfile | Select-Object Name, Enabled | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Firewall rule enumeration reveals network restrictions. Monitor for unusual firewall configuration queries and rule modifications.",
+                                               "realWorldUsage":  "Attackers enumerate firewall rules to understand network segmentation and plan lateral movement or data exfiltration."
+                                           }
+                       },
+                       {
+                           "id":  "T1047",
+                           "name":  "Windows Management Instrumentation",
+                           "tactic":  "Lateral Movement",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  true,
+                           "command":  "Get-WmiObject Win32_OperatingSystem | Select-Object Caption, Version | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "WMI enables remote execution without deploying files. Monitor for remote WMI connections and process creation via WMI.",
+                                               "realWorldUsage":  "APT41 and many threat actors use WMI for lateral movement as it leaves minimal forensic artifacts."
+                                           }
+                       },
+                       {
+                           "id":  "T1569.002",
+                           "name":  "System Services: Service Execution",
+                           "tactic":  "Lateral Movement",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  true,
+                           "command":  "sc.exe query state= all | Select-Object -First 20 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Remote service creation enables code execution on other systems. Monitor for remote sc.exe connections and service installations.",
+                                               "realWorldUsage":  "Cobalt Strike and other C2 frameworks use PSExec-style service execution for lateral movement."
+                                           }
+                       },
+                       {
+                           "id":  "T1041.001",
+                           "name":  "Exfiltration Over C2 Channel: HTTP POST",
+                           "tactic":  "Exfiltration",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$body = @{data=\u0027test\u0027} | ConvertTo-Json; $body | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "HTTP POST exfiltration blends with normal web traffic. Monitor for unusual POST data volumes and destinations.",
+                                               "realWorldUsage":  "Most threat actors exfiltrate data via HTTP/HTTPS POST requests to blend with normal enterprise web traffic."
+                                           }
+                       },
+                       {
+                           "id":  "T1048.003",
+                           "name":  "Exfiltration Over Alternative Protocol: DNS",
+                           "tactic":  "Exfiltration",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Resolve-DnsName microsoft.com -Type TXT -ErrorAction SilentlyContinue | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "DNS exfiltration bypasses many security controls. Monitor for high volumes of DNS queries, long subdomain names, and TXT record queries.",
+                                               "realWorldUsage":  "APT groups and financial threat actors use DNS tunneling for stealthy C2 and data exfiltration."
+                                           }
+                       },
+                       {
+                           "id":  "T1486",
+                           "name":  "Data Encrypted for Impact",
+                           "tactic":  "Impact",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$testData = \u0027MagnetoEncryptionTest\u0027; $encrypted = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($testData)); $encrypted | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Ransomware encryption is a critical impact. Monitor for rapid file modifications, known ransomware extensions, and ransom notes.",
+                                               "realWorldUsage":  "All ransomware operations including LockBit, BlackCat, Royal, and Cl0p encrypt data for extortion."
+                                           }
+                       },
+                       {
+                           "id":  "T1490",
+                           "name":  "Inhibit System Recovery",
+                           "tactic":  "Impact",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "vssadmin list shadows 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Shadow copy deletion prevents recovery. Monitor for vssadmin, wmic, and bcdedit commands targeting backup infrastructure.",
+                                               "realWorldUsage":  "Ransomware operators delete shadow copies and backups before encryption to maximize impact and payment pressure."
+                                           }
+                       },
+                       {
+                           "id":  "T1489",
+                           "name":  "Service Stop",
+                           "tactic":  "Impact",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "Get-Service | Where-Object { $_.Status -eq \u0027Running\u0027 } | Select-Object -First 10 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Stopping security and backup services enables attacks. Monitor for service stop commands targeting security tools and databases.",
+                                               "realWorldUsage":  "Ransomware groups stop database, backup, and security services before encryption to ensure maximum file access."
+                                           }
+                       },
+                       {
+                           "id":  "T1566.001",
+                           "name":  "Phishing: Spearphishing Attachment",
+                           "tactic":  "Initial Access",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$testFile = \"$env:TEMP\\test_attachment.txt\"; Set-Content -Path $testFile -Value \u0027Test phishing attachment simulation\u0027; Remove-Item $testFile -Force",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Phishing attachments are the top initial access vector. Monitor for macro-enabled documents, LNK files, and unusual attachment types.",
+                                               "realWorldUsage":  "APT29, APT28, and virtually all threat actors use spearphishing with malicious attachments for initial access."
+                                           }
+                       },
+                       {
+                           "id":  "T1078",
+                           "name":  "Valid Accounts",
+                           "tactic":  "Defense Evasion",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "query user 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Compromised credentials enable stealthy access. Monitor for impossible travel, unusual login times, and abnormal access patterns.",
+                                               "realWorldUsage":  "All APT groups leverage stolen or compromised credentials to blend with legitimate user activity."
+                                           }
+                       },
+                       {
+                           "id":  "T1082",
+                           "name":  "System Information Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "systeminfo | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "System enumeration reveals OS details, patches, and domain membership. Monitor for unusual systeminfo executions.",
+                                               "realWorldUsage":  "Universal reconnaissance technique used by all threat actors to understand the target environment."
+                                           }
+                       },
+                       {
+                           "id":  "T1083",
+                           "name":  "File and Directory Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 50 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "File enumeration identifies valuable data. Monitor for recursive directory listings and searches for sensitive file types.",
+                                               "realWorldUsage":  "All threat actors enumerate files to identify sensitive data, credentials, and valuable intellectual property."
+                                           }
+                       },
+                       {
+                           "id":  "T1018",
+                           "name":  "Remote System Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "net view 2\u003e$null | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Remote system enumeration identifies lateral movement targets. Monitor for net view, ping sweeps, and AD queries.",
+                                               "realWorldUsage":  "APT groups enumerate network systems to identify high-value targets like domain controllers and file servers."
+                                           }
+                       },
+                       {
+                           "id":  "T1005",
+                           "name":  "Data from Local System",
+                           "tactic":  "Collection",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-Content -Path \"$env:USERPROFILE\\*.txt\" -ErrorAction SilentlyContinue | Select-Object -First 10 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Local data collection precedes exfiltration. Monitor for unusual file access patterns and large-scale file reads.",
+                                               "realWorldUsage":  "All threat actors collect sensitive local data including documents, credentials, and configuration files."
+                                           }
+                       },
+                       {
+                           "id":  "T1560.001",
+                           "name":  "Archive Collected Data: Archive via Utility",
+                           "tactic":  "Collection",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Compress-Archive -Path \"$env:TEMP\\*.tmp\" -DestinationPath \"$env:TEMP\\test_archive.zip\" -Force -ErrorAction SilentlyContinue; Remove-Item \"$env:TEMP\\test_archive.zip\" -Force -ErrorAction SilentlyContinue",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Data compression using utilities indicates preparation for exfiltration. Monitor for archive tool usage in unusual contexts.",
+                                               "realWorldUsage":  "Threat actors use native and third-party compression tools to stage data before exfiltration."
+                                           }
+                       },
+                       {
+                           "id":  "T1021.001",
+                           "name":  "Remote Services: Remote Desktop Protocol",
+                           "tactic":  "Lateral Movement",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-ItemProperty \u0027HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server\u0027 -Name fDenyTSConnections -ErrorAction SilentlyContinue | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "RDP is a common lateral movement method. Monitor for unusual RDP connections, especially from unexpected sources.",
+                                               "realWorldUsage":  "APT groups and ransomware operators use RDP for interactive access and lateral movement within networks."
+                                           }
+                       },
+                       {
+                           "id":  "T1529",
+                           "name":  "System Shutdown/Reboot",
+                           "tactic":  "Impact",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "shutdown /? | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "System shutdown can disrupt operations and hide forensic evidence. Monitor for unexpected shutdown commands.",
+                                               "realWorldUsage":  "Ransomware may force reboots to complete encryption or clear memory-resident evidence."
+                                           }
+                       },
+                       {
+                           "id":  "T1020",
+                           "name":  "Automated Exfiltration",
+                           "tactic":  "Exfiltration",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "$schedule = Get-ScheduledTask -ErrorAction SilentlyContinue | Select-Object -First 5; $schedule | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Automated exfiltration uses scheduled tasks or scripts. Monitor for data transfer patterns and scheduled task execution.",
+                                               "realWorldUsage":  "APT groups automate data exfiltration to continuously steal data over extended periods."
+                                           }
+                       },
+                       {
+                           "id":  "T1074.001",
+                           "name":  "Data Staged: Local Data Staging",
+                           "tactic":  "Collection",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "New-Item -ItemType Directory -Path \"$env:TEMP\\MagnetoStaging\" -Force | Out-Null; Remove-Item -Path \"$env:TEMP\\MagnetoStaging\" -Recurse -Force",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Data staging in temp directories precedes exfiltration. Monitor for unusual directory creation and file movements.",
+                                               "realWorldUsage":  "Threat actors stage collected data in temporary directories before compression and exfiltration."
+                                           }
+                       },
+                       {
+                           "id":  "T1190",
+                           "name":  "Exploit Public-Facing Application",
+                           "tactic":  "Initial Access",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-NetTCPConnection -State Listen | Select-Object -First 10 | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Exploitation of public services provides initial access. Monitor for unusual process spawning from web services.",
+                                               "realWorldUsage":  "APT groups exploit vulnerabilities in web applications, VPNs, and other internet-facing services."
+                                           }
+                       },
+                       {
+                           "id":  "T1133",
+                           "name":  "External Remote Services",
+                           "tactic":  "Persistence",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-ItemProperty \u0027HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services\u0027 -ErrorAction SilentlyContinue | Out-Null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "External remote services like VPN and RDP provide persistent access. Monitor for unusual remote access patterns.",
+                                               "realWorldUsage":  "Threat actors maintain persistence through legitimate remote access services using stolen credentials."
+                                           }
+                       },
+                       {
+                           "source":  "custom",
+                           "requiresDomain":  true,
+                           "id":  "T1591",
+                           "tactic":  "Reconnaissance",
+                           "cleanupCommand":  "",
+                           "requiresAdmin":  false,
+                           "createdAt":  "2025-12-04T23:35:21.111Z",
+                           "name":  "Gather Organization Information",
+                           "description":  {
+                                               "realWorldUsage":  "In real-world attacks, adversaries use **T1591 (Gather Organization Information)** to study a companyâ€™s identity structure, domain relationships, and key personnel before launching targeted attacks. Campaigns like **SolarWinds, LAPSUS$, and FIN7** used organizational intelligence to identify high-value systems, trusted partners, and privileged users. This reconnaissance enabled more effective **spear-phishing, help-desk impersonation, and supply-chain compromise** rather than random exploitation. Without this phase, many modern intrusions would fail before reaching privileged access.",
+                                               "whyTrack":  "Tracking MITRE ATT\u0026CK T1591 â€“ Gather Organization Information is not a â€œnice to haveâ€ â€” it is one of the strongest early-warning indicators of an attack before exploitation even begins. It gives SOC teams the earliest chance to break the kill chain while the attacker is still planning and mapping."
+                                           },
+                           "command":  "set\nnltest /domain_trusts\nnltest /dclist:%USERDOMAIN%\necho %USERDOMAIN%\necho %LOGONSERVER%",
+                           "modifiedAt":  "2025-12-04T23:35:21.111Z",
+                           "enabled":  true
+                       }
+                   ],
+    "lastUpdated":  "2025-12-04T23:35:21.112Z"
+}

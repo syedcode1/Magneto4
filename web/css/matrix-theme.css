@@ -1,0 +1,1089 @@
+/* ============================================================================
+   MAGNETO V4 - Matrix Theme Stylesheet
+   Living Off The Land Attack Simulator
+   ============================================================================ */
+
+/* CSS Variables - Matrix Color Palette */
+:root {
+    /* Core Matrix Colors */
+    --matrix-black: #0d0208;
+    --matrix-dark: #003b00;
+    --matrix-green: #00ff41;
+    --matrix-light-green: #008f11;
+    --matrix-bright: #00ff00;
+    --matrix-dim: #00cc33;
+
+    /* Accent Colors */
+    --matrix-cyan: #00ffff;
+    --matrix-red: #ff0000;
+    --matrix-amber: #ffb000;
+    --matrix-blue: #0088ff;
+
+    /* UI Colors */
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1a1a1a;
+    --bg-card: rgba(0, 20, 0, 0.85);
+    --bg-hover: rgba(0, 255, 65, 0.1);
+
+    /* Border & Shadow */
+    --border-color: rgba(0, 255, 65, 0.3);
+    --border-glow: 0 0 10px rgba(0, 255, 65, 0.5);
+    --text-glow: 0 0 5px rgba(0, 255, 65, 0.8);
+    --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+
+    /* Text Colors */
+    --text-primary: #00ff41;
+    --text-secondary: #00cc33;
+    --text-muted: #006622;
+    --text-white: #ffffff;
+
+    /* Status Colors */
+    --status-success: #00ff41;
+    --status-error: #ff0000;
+    --status-warning: #ffb000;
+    --status-info: #00ffff;
+
+    /* Fonts */
+    --font-mono: 'Share Tech Mono', 'Consolas', 'Monaco', monospace;
+    --font-display: 'Orbitron', 'Share Tech Mono', sans-serif;
+
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.3s ease;
+
+    /* Layout */
+    --header-height: 60px;
+    --sidebar-width: 200px;
+    --console-height: 250px;
+}
+
+/* ============================================================================
+   Reset & Base Styles
+   ============================================================================ */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+}
+
+/* ============================================================================
+   Matrix Rain Canvas
+   ============================================================================ */
+#matrix-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    opacity: 0.12;
+    pointer-events: none;
+}
+
+/* ============================================================================
+   App Container
+   ============================================================================ */
+.app-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: transparent;
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: var(--header-height);
+    padding: 0 var(--spacing-lg);
+    background: linear-gradient(180deg, rgba(0, 30, 0, 0.95) 0%, rgba(0, 20, 0, 0.9) 100%);
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 2px 20px rgba(0, 255, 65, 0.2);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.logo-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--matrix-black);
+    background: var(--matrix-green);
+    border-radius: 4px;
+    text-shadow: none;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 10px var(--matrix-green); }
+    50% { box-shadow: 0 0 25px var(--matrix-green), 0 0 40px var(--matrix-green); }
+}
+
+.logo-text {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--matrix-green);
+    text-shadow: var(--text-glow);
+    letter-spacing: 2px;
+}
+
+.logo-text .version {
+    font-size: 12px;
+    color: var(--matrix-cyan);
+    vertical-align: super;
+    margin-left: 4px;
+}
+
+.tagline {
+    font-size: 12px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-warning);
+    animation: blink 1s ease-in-out infinite;
+}
+
+.status-indicator.connected .status-dot {
+    background: var(--status-success);
+    animation: none;
+    box-shadow: 0 0 10px var(--status-success);
+}
+
+.status-indicator.error .status-dot {
+    background: var(--status-error);
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.status-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ============================================================================
+   Main Content Layout
+   ============================================================================ */
+.main-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ============================================================================
+   Sidebar Navigation
+   ============================================================================ */
+.sidebar {
+    width: var(--sidebar-width);
+    background: linear-gradient(180deg, rgba(0, 25, 0, 0.95) 0%, rgba(0, 15, 0, 0.9) 100%);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-menu {
+    list-style: none;
+    padding: var(--spacing-md) 0;
+    flex: 1;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border-left: 3px solid transparent;
+}
+
+.nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.nav-item.active {
+    background: rgba(0, 255, 65, 0.15);
+    color: var(--matrix-green);
+    border-left-color: var(--matrix-green);
+    text-shadow: var(--text-glow);
+}
+
+.nav-item svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.nav-item span {
+    font-size: 14px;
+}
+
+.sidebar-footer {
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.framework-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(0, 136, 255, 0.1);
+    border: 1px solid rgba(0, 136, 255, 0.3);
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.framework-badge span:first-child {
+    color: var(--matrix-blue);
+}
+
+.badge-version {
+    color: var(--matrix-cyan);
+    font-weight: bold;
+}
+
+/* ============================================================================
+   Content Panel
+   ============================================================================ */
+.content-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-lg);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================================
+   Views
+   ============================================================================ */
+.view {
+    display: none;
+}
+
+.view.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-lg);
+}
+
+.view-header h1 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    color: var(--matrix-green);
+    text-shadow: var(--text-glow);
+    letter-spacing: 2px;
+}
+
+.view-header p {
+    color: var(--text-secondary);
+    margin-top: var(--spacing-xs);
+}
+
+.view-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+/* ============================================================================
+   Cards
+   ============================================================================ */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: var(--spacing-lg);
+    box-shadow: var(--box-shadow);
+}
+
+.card h3 {
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: var(--matrix-cyan);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* ============================================================================
+   Dashboard Grid
+   ============================================================================ */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-lg);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+}
+
+.stat-item {
+    text-align: center;
+    padding: var(--spacing-md);
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
+.stat-value {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 32px;
+    color: var(--matrix-green);
+    text-shadow: var(--text-glow);
+}
+
+.stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.system-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+}
+
+.info-label {
+    color: var(--text-muted);
+}
+
+.info-value {
+    color: var(--text-primary);
+    font-weight: bold;
+}
+
+/* ============================================================================
+   Buttons
+   ============================================================================ */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    border: 1px solid;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn-primary {
+    background: var(--matrix-green);
+    border-color: var(--matrix-green);
+    color: var(--matrix-black);
+}
+
+.btn-primary:hover {
+    background: var(--matrix-bright);
+    box-shadow: 0 0 20px var(--matrix-green);
+}
+
+.btn-secondary {
+    background: transparent;
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: var(--bg-hover);
+    border-color: var(--matrix-green);
+}
+
+.btn-danger {
+    background: transparent;
+    border-color: var(--status-error);
+    color: var(--status-error);
+}
+
+.btn-danger:hover {
+    background: rgba(255, 0, 0, 0.2);
+}
+
+.btn-execute {
+    width: 100%;
+    padding: var(--spacing-md);
+    font-size: 14px;
+    margin-top: var(--spacing-md);
+}
+
+.btn-execute svg {
+    width: 20px;
+    height: 20px;
+}
+
+.btn-large {
+    padding: var(--spacing-lg);
+    font-size: 16px;
+}
+
+.btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-icon:hover {
+    background: var(--bg-hover);
+    border-color: var(--matrix-green);
+    color: var(--matrix-green);
+}
+
+.btn-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.btn-icon.btn-small {
+    width: 28px;
+    height: 28px;
+}
+
+.btn-icon.btn-small svg {
+    width: 14px;
+    height: 14px;
+}
+
+.btn-icon.btn-danger:hover {
+    border-color: var(--status-error);
+    color: var(--status-error);
+    background: rgba(255, 0, 0, 0.1);
+}
+
+/* ============================================================================
+   Form Elements
+   ============================================================================ */
+.form-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--spacing-xs);
+}
+
+.select-input,
+.text-input {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    outline: none;
+    transition: all var(--transition-fast);
+}
+
+.select-input:focus,
+.text-input:focus {
+    border-color: var(--matrix-green);
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+.select-input option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.search-input {
+    flex: 1;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    outline: none;
+}
+
+.search-bar {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.search-bar .select-input {
+    width: 200px;
+}
+
+/* Radio & Checkbox */
+.radio-group,
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.radio-label,
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background var(--transition-fast);
+}
+
+.radio-label:hover,
+.checkbox-label:hover {
+    background: var(--bg-hover);
+}
+
+.radio-label input,
+.checkbox-label input {
+    accent-color: var(--matrix-green);
+}
+
+/* ============================================================================
+   Tables
+   ============================================================================ */
+.ttp-table-container {
+    overflow-x: auto;
+}
+
+.ttp-table,
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ttp-table th,
+.ttp-table td,
+.user-table th,
+.user-table td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ttp-table th,
+.user-table th {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.ttp-table tr:hover,
+.user-table tr:hover {
+    background: var(--bg-hover);
+}
+
+.loading-cell,
+.empty-cell {
+    text-align: center;
+    color: var(--text-muted);
+    padding: var(--spacing-xl) !important;
+}
+
+/* ============================================================================
+   Console Panel
+   ============================================================================ */
+.console-panel {
+    height: var(--console-height);
+    background: linear-gradient(180deg, rgba(0, 15, 0, 0.98) 0%, rgba(0, 10, 0, 0.95) 100%);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: height var(--transition-normal);
+}
+
+.console-panel.collapsed {
+    height: 40px;
+}
+
+.console-panel.collapsed .console-output {
+    display: none;
+}
+
+.console-panel.resizing {
+    transition: none;
+}
+
+.console-resize-handle {
+    height: 6px;
+    background: linear-gradient(180deg, var(--border-color) 0%, transparent 100%);
+    cursor: ns-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.console-resize-handle::before {
+    content: '';
+    width: 50px;
+    height: 3px;
+    background: var(--matrix-green);
+    border-radius: 2px;
+    opacity: 0.4;
+    transition: opacity var(--transition-fast), width var(--transition-fast);
+}
+
+.console-resize-handle:hover::before {
+    opacity: 0.8;
+    width: 80px;
+}
+
+.console-resize-handle:active::before {
+    opacity: 1;
+    background: var(--matrix-green-bright);
+}
+
+.console-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--border-color);
+    min-height: 40px;
+}
+
+.console-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.console-title svg {
+    width: 16px;
+    height: 16px;
+    color: var(--matrix-cyan);
+}
+
+.console-status {
+    font-size: 10px;
+    padding: 2px 8px;
+    background: rgba(255, 176, 0, 0.2);
+    border: 1px solid var(--status-warning);
+    border-radius: 10px;
+    color: var(--status-warning);
+}
+
+.console-status.connected {
+    background: rgba(0, 255, 65, 0.2);
+    border-color: var(--status-success);
+    color: var(--status-success);
+}
+
+.console-controls {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.console-output {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.console-line {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(0, 255, 65, 0.05);
+}
+
+.console-timestamp {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.console-message {
+    word-break: break-word;
+}
+
+.console-line.console-info .console-message {
+    color: var(--matrix-cyan);
+}
+
+.console-line.console-success .console-message {
+    color: var(--status-success);
+}
+
+.console-line.console-error .console-message {
+    color: var(--status-error);
+}
+
+.console-line.console-warning .console-message {
+    color: var(--status-warning);
+}
+
+.console-line.console-system .console-message {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.console-line.console-output .console-message {
+    color: var(--text-secondary);
+    padding-left: 20px;
+}
+
+/* Command Box Styling */
+.console-line.console-command {
+    margin: 8px 0;
+}
+
+.console-command-box {
+    display: inline-block;
+    margin-left: 10px;
+    margin-top: 4px;
+    background: linear-gradient(135deg, rgba(0, 50, 0, 0.6) 0%, rgba(0, 30, 0, 0.8) 100%);
+    border: 1px solid var(--matrix-green);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0, 255, 65, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.3);
+    max-width: calc(100% - 120px);
+}
+
+.console-command-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: linear-gradient(90deg, rgba(0, 255, 65, 0.15) 0%, transparent 100%);
+    border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+    color: var(--matrix-green);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.console-command-header svg {
+    opacity: 0.8;
+}
+
+.console-command-code {
+    margin: 0;
+    padding: 10px 14px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--matrix-green-bright);
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: transparent;
+    text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+}
+
+/* Console scrollbar */
+.console-output::-webkit-scrollbar {
+    width: 8px;
+}
+
+.console-output::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.console-output::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.console-output::-webkit-scrollbar-thumb:hover {
+    background: var(--matrix-green);
+}
+
+/* ============================================================================
+   Modal
+   ============================================================================ */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal {
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 0 40px rgba(0, 255, 65, 0.3);
+    display: flex;
+    flex-direction: column;
+    animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: var(--matrix-cyan);
+    letter-spacing: 1px;
+}
+
+.modal-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-lg);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+}
+
+/* ============================================================================
+   Reports View
+   ============================================================================ */
+.reports-content {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: var(--spacing-lg);
+    height: calc(100vh - var(--header-height) - var(--console-height) - 150px);
+}
+
+.reports-list-panel .card,
+.report-preview-panel .card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.reports-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.report-preview {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.report-preview iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.preview-placeholder,
+.reports-empty,
+.schedule-empty,
+.history-empty,
+.activity-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* ============================================================================
+   Utility Classes
+   ============================================================================ */
+.hidden {
+    display: none !important;
+}
+
+.text-success { color: var(--status-success); }
+.text-error { color: var(--status-error); }
+.text-warning { color: var(--status-warning); }
+.text-info { color: var(--status-info); }
+
+/* ============================================================================
+   Scrollbar Styling
+   ============================================================================ */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--matrix-green);
+}
+
+/* ============================================================================
+   Responsive Adjustments
+   ============================================================================ */
+@media (max-width: 1200px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .reports-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 60px;
+    }
+
+    .nav-item span {
+        display: none;
+    }
+
+    .sidebar-footer {
+        display: none;
+    }
+
+    .tagline {
+        display: none;
+    }
+}

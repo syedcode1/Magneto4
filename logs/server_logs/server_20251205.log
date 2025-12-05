@@ -1,0 +1,54 @@
+[2025-12-05 00:55:02.022] [INFO] Server started on http://localhost:8080/
+[2025-12-05 00:55:02.159] [DEBUG] GET /
+[2025-12-05 00:55:02.196] [DEBUG] GET /css/matrix-theme.css
+[2025-12-05 00:55:02.200] [DEBUG] GET /js/matrix-rain.js
+[2025-12-05 00:55:02.203] [DEBUG] GET /js/websocket-client.js
+[2025-12-05 00:55:02.205] [DEBUG] GET /js/console.js
+[2025-12-05 00:55:02.207] [DEBUG] GET /js/app.js
+[2025-12-05 00:55:02.244] [DEBUG] GET /ws
+[2025-12-05 00:55:02.288] [DEBUG] GET /api/status
+[2025-12-05 00:55:02.370] [DEBUG] GET /api/tactics
+[2025-12-05 00:55:02.374] [DEBUG] GET /favicon.ico
+[2025-12-05 00:55:02.383] [WARN] 404 Not Found: /favicon.ico
+[2025-12-05 00:55:02.386] [DEBUG] GET /api/techniques
+[2025-12-05 00:55:02.400] [DEBUG] GET /api/campaigns
+[2025-12-05 00:55:07.690] [DEBUG] GET /api/techniques
+[2025-12-05 00:55:10.467] [DEBUG] POST /api/execute/start
+[2025-12-05 00:55:22.342] [DEBUG] POST /api/execute/start
+[2025-12-05 00:56:42.273] [DEBUG] POST /api/execute/start
+[2025-12-05 00:56:59.382] [DEBUG] POST /api/execute/start
+[2025-12-05 00:59:23.856] [DEBUG] GET /api/techniques
+[2025-12-05 00:59:44.095] [DEBUG] GET /api/reports
+[2025-12-05 10:52:42.674] [INFO] Server started on http://localhost:8080/
+[2025-12-05 10:52:42.819] [DEBUG] GET /
+[2025-12-05 10:52:42.858] [DEBUG] GET /css/matrix-theme.css
+[2025-12-05 10:52:42.863] [DEBUG] GET /js/matrix-rain.js
+[2025-12-05 10:52:42.866] [DEBUG] GET /js/websocket-client.js
+[2025-12-05 10:52:42.869] [DEBUG] GET /js/console.js
+[2025-12-05 10:52:42.872] [DEBUG] GET /js/app.js
+[2025-12-05 10:52:42.910] [DEBUG] GET /ws
+[2025-12-05 10:52:42.951] [DEBUG] GET /api/status
+[2025-12-05 10:52:43.031] [DEBUG] GET /api/tactics
+[2025-12-05 10:52:43.048] [DEBUG] GET /api/techniques
+[2025-12-05 10:52:43.062] [DEBUG] GET /api/campaigns
+[2025-12-05 10:53:03.523] [DEBUG] GET /api/techniques
+[2025-12-05 10:53:33.559] [DEBUG] GET /api/techniques
+[2025-12-05 10:53:40.317] [DEBUG] POST /api/execute/start
+[2025-12-05 10:54:04.191] [DEBUG] POST /api/execute/start
+[2025-12-05 11:21:59.747] [INFO] Server started on http://localhost:8080/
+[2025-12-05 11:21:59.888] [DEBUG] GET /
+[2025-12-05 11:21:59.925] [DEBUG] GET /css/matrix-theme.css
+[2025-12-05 11:21:59.929] [DEBUG] GET /js/matrix-rain.js
+[2025-12-05 11:21:59.932] [DEBUG] GET /js/websocket-client.js
+[2025-12-05 11:21:59.934] [DEBUG] GET /js/console.js
+[2025-12-05 11:21:59.938] [DEBUG] GET /js/app.js
+[2025-12-05 11:21:59.977] [DEBUG] GET /ws
+[2025-12-05 11:22:00.015] [DEBUG] GET /api/status
+[2025-12-05 11:22:00.097] [DEBUG] GET /api/tactics
+[2025-12-05 11:22:00.114] [DEBUG] GET /api/techniques
+[2025-12-05 11:22:00.132] [DEBUG] GET /api/campaigns
+[2025-12-05 11:22:04.230] [DEBUG] GET /ws
+[2025-12-05 11:22:19.838] [DEBUG] GET /api/techniques
+[2025-12-05 11:22:24.129] [DEBUG] POST /api/execute/start
+[2025-12-05 11:22:41.027] [DEBUG] POST /api/execute/start
+[2025-12-05 11:22:53.027] [DEBUG] POST /api/execute/start
