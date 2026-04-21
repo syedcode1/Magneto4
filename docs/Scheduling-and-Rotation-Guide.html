@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAGNETO V4 - Scheduling & Smart Rotation Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #00ff41;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        h2 {
+            color: #00ffff;
+            font-size: 1.6em;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #00ffff;
+        }
+
+        h3 {
+            color: #00ff41;
+            font-size: 1.2em;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+
+        h4 {
+            color: #00ffff;
+            font-size: 1em;
+            margin-top: 20px;
+            margin-bottom: 8px;
+        }
+
+        p {
+            margin-bottom: 15px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1em;
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        th, td {
+            border: 1px solid #00ff41;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(0, 255, 65, 0.15);
+            color: #00ff41;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: rgba(0, 255, 65, 0.08);
+        }
+
+        code {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: rgba(0, 255, 65, 0.1);
+            color: #00ff41;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: #111;
+            border: 1px solid #333;
+            border-left: 3px solid #00ff41;
+            padding: 15px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #00ff41;
+        }
+
+        .toc {
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid #00ffff;
+            padding: 20px 30px;
+            margin: 30px 0;
+            border-radius: 5px;
+        }
+
+        .toc h3 {
+            color: #00ffff;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .toc ol {
+            margin-left: 20px;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .toc a {
+            color: #00ff41;
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        ol, ul {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        .note {
+            background: rgba(0, 255, 255, 0.1);
+            border-left: 4px solid #00ffff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .warning {
+            background: rgba(255, 200, 0, 0.1);
+            border-left: 4px solid #ffc800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .warning strong {
+            color: #ffc800;
+        }
+
+        .tip {
+            background: rgba(0, 255, 65, 0.1);
+            border-left: 4px solid #00ff41;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .tip strong {
+            color: #00ff41;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+
+        .badge-green {
+            background: rgba(0, 255, 65, 0.2);
+            color: #00ff41;
+        }
+
+        .badge-blue {
+            background: rgba(0, 150, 255, 0.2);
+            color: #00aaff;
+        }
+
+        .badge-orange {
+            background: rgba(255, 165, 0, 0.2);
+            color: #ffa500;
+        }
+
+        .badge-gray {
+            background: rgba(150, 150, 150, 0.2);
+            color: #999;
+        }
+
+        .badge-purple {
+            background: rgba(180, 100, 255, 0.2);
+            color: #b464ff;
+        }
+
+        .phase-diagram {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        .phase-box {
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            flex: 1;
+            margin: 0 10px;
+        }
+
+        .phase-box.baseline {
+            background: rgba(0, 150, 255, 0.15);
+            border: 2px solid #00aaff;
+        }
+
+        .phase-box.attack {
+            background: rgba(255, 0, 0, 0.15);
+            border: 2px solid #ff4444;
+        }
+
+        .phase-box.cooldown {
+            background: rgba(150, 150, 150, 0.15);
+            border: 2px solid #888;
+        }
+
+        .phase-box h4 {
+            margin: 0 0 10px 0;
+            color: inherit;
+        }
+
+        .phase-box.baseline h4 { color: #00aaff; }
+        .phase-box.attack h4 { color: #ff4444; }
+        .phase-box.cooldown h4 { color: #888; }
+
+        .phase-arrow {
+            font-size: 24px;
+            color: #00ff41;
+        }
+
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .steps li {
+            counter-increment: step;
+            padding-left: 40px;
+            position: relative;
+            margin: 15px 0;
+        }
+
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 25px;
+            height: 25px;
+            background: #00ff41;
+            color: #000;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 25px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #333;
+            margin: 40px 0;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .config-item {
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        .config-item h4 {
+            margin-top: 0;
+            color: #00ff41;
+        }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+            color: #666;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .comparison-table td:first-child {
+            font-weight: bold;
+            color: #00ffff;
+        }
+    </style>
+</head>
+<body>
+    <h1>MAGNETO V4</h1>
+    <p class="subtitle">Scheduling & Smart Rotation Guide</p>
+
+    <p>MAGNETO provides two powerful automation features for attack simulations: <strong>Manual Scheduling</strong> for one-time or recurring tasks, and <strong>Smart Rotation</strong> for continuous UEBA (User Entity Behavior Analytics) demo environments.</p>
+
+    <div class="toc">
+        <h3>Table of Contents</h3>
+        <ol>
+            <li><a href="#overview">Scheduling vs Smart Rotation</a></li>
+            <li><a href="#manual-scheduling">Manual Scheduling</a>
+                <ol>
+                    <li><a href="#create-schedule">Creating a Schedule</a></li>
+                    <li><a href="#schedule-types">Schedule Types</a></li>
+                    <li><a href="#manage-schedules">Managing Schedules</a></li>
+                </ol>
+            </li>
+            <li><a href="#smart-rotation">Smart Rotation for UEBA</a>
+                <ol>
+                    <li><a href="#rotation-concept">How It Works</a></li>
+                    <li><a href="#rotation-phases">User Phases</a></li>
+                    <li><a href="#add-rotation-users">Adding Users to Rotation</a></li>
+                    <li><a href="#rotation-config">Configuration Options</a></li>
+                    <li><a href="#enable-rotation">Enabling Smart Rotation</a></li>
+                </ol>
+            </li>
+            <li><a href="#ttp-classification">TTP Classification</a></li>
+            <li><a href="#best-practices">Best Practices</a></li>
+        </ol>
+    </div>
+
+    <hr>
+
+    <h2 id="overview">Scheduling vs Smart Rotation</h2>
+
+    <p>Choose the right automation feature for your use case:</p>
+
+    <table class="comparison-table">
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>Manual Scheduling</th>
+                <th>Smart Rotation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Purpose</td>
+                <td>Run specific attacks on a schedule</td>
+                <td>Continuous UEBA baseline/attack simulation</td>
+            </tr>
+            <tr>
+                <td>Users</td>
+                <td>Single user per schedule</td>
+                <td>Multiple users (up to 30) rotating</td>
+            </tr>
+            <tr>
+                <td>TTPs</td>
+                <td>You choose campaigns/tactics</td>
+                <td>Auto-selected based on phase</td>
+            </tr>
+            <tr>
+                <td>Duration</td>
+                <td>One-time or recurring</td>
+                <td>Continuous (months)</td>
+            </tr>
+            <tr>
+                <td>Best For</td>
+                <td>Scheduled penetration tests</td>
+                <td>Exabeam/UEBA demo environments</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h2 id="manual-scheduling">Manual Scheduling</h2>
+
+    <p>Create scheduled tasks that run attack simulations automatically using Windows Task Scheduler.</p>
+
+    <h3 id="create-schedule">Creating a Schedule</h3>
+
+    <ol class="steps">
+        <li>Navigate to <strong>Scheduler</strong> in the sidebar</li>
+        <li>Scroll down to the <strong>Manual Schedules</strong> section</li>
+        <li>Click <strong>New Schedule</strong> button</li>
+        <li>Fill in the schedule form (see fields below)</li>
+        <li>Click <strong>Create Schedule</strong></li>
+    </ol>
+
+    <h4>Schedule Form Fields</h4>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Field</th>
+                <th>Description</th>
+                <th>Example</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Schedule Name</strong></td>
+                <td>Descriptive name for the schedule</td>
+                <td>Daily Recon Scan</td>
+            </tr>
+            <tr>
+                <td><strong>Execution Target</strong></td>
+                <td>What to execute (APT campaign or tactic)</td>
+                <td>APT29, Discovery tactic</td>
+            </tr>
+            <tr>
+                <td><strong>Execute As</strong></td>
+                <td>User to impersonate (from user pool)</td>
+                <td>CORP\jsmith</td>
+            </tr>
+            <tr>
+                <td><strong>Schedule Type</strong></td>
+                <td>When to run (once, daily, weekly, monthly)</td>
+                <td>Daily</td>
+            </tr>
+            <tr>
+                <td><strong>Start Date/Time</strong></td>
+                <td>When the schedule begins</td>
+                <td>2024-01-15 09:00</td>
+            </tr>
+            <tr>
+                <td><strong>Days of Week</strong></td>
+                <td>For weekly schedules only</td>
+                <td>Mon, Wed, Fri</td>
+            </tr>
+            <tr>
+                <td><strong>Run Cleanup</strong></td>
+                <td>Clean up artifacts after each technique</td>
+                <td>Checked</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3 id="schedule-types">Schedule Types</h3>
+
+    <div class="config-grid">
+        <div class="config-item">
+            <h4>Once</h4>
+            <p>Runs a single time at the specified date/time. Good for one-off tests.</p>
+        </div>
+        <div class="config-item">
+            <h4>Daily</h4>
+            <p>Runs every day at the specified time. Good for continuous testing.</p>
+        </div>
+        <div class="config-item">
+            <h4>Weekly</h4>
+            <p>Runs on selected days of the week. Good for business-hours testing.</p>
+        </div>
+        <div class="config-item">
+            <h4>Monthly</h4>
+            <p>Runs once per month on the specified day. Good for compliance checks.</p>
+        </div>
+    </div>
+
+    <h3 id="manage-schedules">Managing Schedules</h3>
+
+    <p>Each schedule in the list shows:</p>
+    <ul>
+        <li><strong>Status badge</strong> - Active (green) or Disabled (gray)</li>
+        <li><strong>Next run time</strong> - When it will execute next</li>
+        <li><strong>Last run time</strong> - When it last executed</li>
+        <li><strong>Technique count</strong> - Number of TTPs in the schedule</li>
+    </ul>
+
+    <h4>Schedule Actions</h4>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Button</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="badge badge-green">&#9658;</span> Run Now</td>
+                <td>Execute the schedule immediately</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-blue">&#10074;&#10074;</span> Enable/Disable</td>
+                <td>Toggle schedule on/off</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-orange">&#9998;</span> Edit</td>
+                <td>Modify schedule settings</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-gray">&#128465;</span> Delete</td>
+                <td>Remove the schedule</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="note">
+        <strong>Note:</strong> Schedules are managed through Windows Task Scheduler. They persist even if MAGNETO is not running and will execute at the scheduled time.
+    </div>
+
+    <hr>
+
+    <h2 id="smart-rotation">Smart Rotation for UEBA</h2>
+
+    <p>Smart Rotation is designed for Exabeam UEBA demo environments where you need to establish baseline behavior before triggering attack alerts.</p>
+
+    <h3 id="rotation-concept">How It Works</h3>
+
+    <p>Smart Rotation automates a continuous cycle of user behavior simulation:</p>
+
+    <div class="phase-diagram">
+        <div class="phase-box baseline">
+            <h4>BASELINE</h4>
+            <p>14 days</p>
+            <p>Normal TTPs</p>
+            <p>3 TTPs/day</p>
+        </div>
+        <span class="phase-arrow">&#10132;</span>
+        <div class="phase-box attack">
+            <h4>ATTACK</h4>
+            <p>10 days</p>
+            <p>Attack TTPs</p>
+            <p>Day 1: 10 TTPs</p>
+            <p>After: 3-4 TTPs</p>
+        </div>
+        <span class="phase-arrow">&#10132;</span>
+        <div class="phase-box cooldown">
+            <h4>COOLDOWN</h4>
+            <p>6 days</p>
+            <p>No activity</p>
+            <p>Reset cycle</p>
+        </div>
+        <span class="phase-arrow">&#10132;</span>
+        <span style="color: #00ff41;">Repeat</span>
+    </div>
+
+    <h4>Key Concepts</h4>
+
+    <ul>
+        <li><strong>Execution-Based Progression:</strong> Users advance phases based on TTPs executed, not just calendar days</li>
+        <li><strong>Day 1 Burst:</strong> First day of attack phase runs 10 TTPs to guarantee UEBA alert</li>
+        <li><strong>Campaign Rotation:</strong> Each cycle uses a different APT campaign (6 campaigns = 6 months variety)</li>
+        <li><strong>Gradual Enrollment:</strong> Users are added in batches to create natural staggering</li>
+    </ul>
+
+    <h3 id="rotation-phases">User Phases</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Phase</th>
+                <th>Duration</th>
+                <th>TTPs Used</th>
+                <th>Purpose</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="badge badge-blue">BASELINE</span></td>
+                <td>14+ days</td>
+                <td>Discovery, Reconnaissance (12 TTPs)</td>
+                <td>Establish normal user behavior in UEBA</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-green">ATTACK</span></td>
+                <td>10+ days</td>
+                <td>Execution, Persistence, Credential Access, etc. (43 TTPs)</td>
+                <td>Trigger UEBA anomaly alerts</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-gray">COOLDOWN</span></td>
+                <td>6 days</td>
+                <td>None</td>
+                <td>Allow alerts to clear before next cycle</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-purple">PENDING</span></td>
+                <td>Varies</td>
+                <td>None</td>
+                <td>Waiting for enrollment date</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h4>Phase Progression Requirements</h4>
+
+    <div class="tip">
+        <strong>Execution-Based:</strong> Users only advance when they've completed enough TTPs:
+        <ul style="margin-top: 10px; margin-bottom: 0;">
+            <li><strong>Baseline → Attack:</strong> 14+ days AND 42+ baseline TTPs executed</li>
+            <li><strong>Attack → Cooldown:</strong> 20+ attack TTPs executed</li>
+            <li><strong>Cooldown → Next Cycle:</strong> 6 days elapsed, counters reset</li>
+        </ul>
+    </div>
+
+    <h3 id="add-rotation-users">Adding Users to Rotation</h3>
+
+    <p>Before adding users to Smart Rotation, they must exist in your <strong>User Pool</strong> (see Adding Users Guide).</p>
+
+    <ol class="steps">
+        <li>Navigate to <strong>Scheduler</strong> in the sidebar</li>
+        <li>Find the <strong>Smart Rotation</strong> section at the top</li>
+        <li>Click <strong>Add Users</strong> button</li>
+        <li>Select users from your user pool (checkboxes)</li>
+        <li>Click <strong>Add to Rotation</strong></li>
+    </ol>
+
+    <h4>User Card Display</h4>
+
+    <p>Each user in rotation shows a card with:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Element</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Phase Badge</strong></td>
+                <td>Current phase (Baseline, Attack, Cooldown, Pending)</td>
+            </tr>
+            <tr>
+                <td><strong>Day Counter</strong></td>
+                <td>Day X of Y in current phase</td>
+            </tr>
+            <tr>
+                <td><strong>Progress Bar</strong></td>
+                <td>Visual progress through phase</td>
+            </tr>
+            <tr>
+                <td><strong>Campaign</strong></td>
+                <td>Current APT campaign (e.g., APT29)</td>
+            </tr>
+            <tr>
+                <td><strong>TTPs Executed</strong></td>
+                <td>Count of TTPs run in current phase</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h4>Gradual Enrollment</h4>
+
+    <p>When adding multiple users, they are enrolled in batches based on <code>maxConcurrentUsers</code>:</p>
+
+    <pre><code>Example with maxConcurrentUsers = 4:
+- Batch 1 (4 users): Enrolled today, start baseline immediately
+- Batch 2 (4 users): Enrolled tomorrow
+- Batch 3 (4 users): Enrolled day after tomorrow
+- etc.</code></pre>
+
+    <p>This prevents all users from hitting attack phase simultaneously.</p>
+
+    <h4>Removing Users</h4>
+
+    <ol>
+        <li>Click the <strong>X</strong> button on a user card</li>
+        <li>Confirm removal</li>
+        <li>User is removed from rotation but stays in user pool</li>
+    </ol>
+
+    <h3 id="rotation-config">Configuration Options</h3>
+
+    <p>Click the <strong>Configure</strong> button in the Smart Rotation section to adjust settings.</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Setting</th>
+                <th>Default</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Baseline Days</strong></td>
+                <td>14</td>
+                <td>Minimum days in baseline phase</td>
+            </tr>
+            <tr>
+                <td><strong>Attack Days</strong></td>
+                <td>10</td>
+                <td>Minimum days in attack phase</td>
+            </tr>
+            <tr>
+                <td><strong>Cooldown Days</strong></td>
+                <td>6</td>
+                <td>Days of inactivity between cycles</td>
+            </tr>
+            <tr>
+                <td><strong>Day 1 Burst TTPs</strong></td>
+                <td>10</td>
+                <td>TTPs to run on first attack day</td>
+            </tr>
+            <tr>
+                <td><strong>Daily TTPs</strong></td>
+                <td>3</td>
+                <td>TTPs to run on subsequent days</td>
+            </tr>
+            <tr>
+                <td><strong>Min Baseline TTPs</strong></td>
+                <td>42</td>
+                <td>Required baseline TTPs before attack phase</td>
+            </tr>
+            <tr>
+                <td><strong>Min Attack TTPs</strong></td>
+                <td>20</td>
+                <td>Required attack TTPs before cooldown</td>
+            </tr>
+            <tr>
+                <td><strong>Execution Time</strong></td>
+                <td>09:00</td>
+                <td>Daily execution time</td>
+            </tr>
+            <tr>
+                <td><strong>Max Concurrent Users</strong></td>
+                <td>4</td>
+                <td>Users to process per day</td>
+            </tr>
+            <tr>
+                <td><strong>Pause on Weekends</strong></td>
+                <td>Off</td>
+                <td>Skip Saturday and Sunday</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3 id="enable-rotation">Enabling Smart Rotation</h3>
+
+    <ol class="steps">
+        <li>Add users to rotation (see above)</li>
+        <li>Configure settings as needed</li>
+        <li>Click the <strong>Enable</strong> toggle button</li>
+        <li>Confirm to create Windows Scheduled Task</li>
+    </ol>
+
+    <p>Once enabled:</p>
+    <ul>
+        <li>Status badge shows <span class="badge badge-green">ACTIVE</span></li>
+        <li>Windows Task Scheduler runs daily at configured time</li>
+        <li>Users automatically progress through phases</li>
+        <li>Console shows execution logs when running</li>
+    </ul>
+
+    <h4>Manual Execution</h4>
+
+    <p>Click <strong>Run Now</strong> to execute today's rotation plan immediately (useful for testing).</p>
+
+    <h4>View Today's Plan</h4>
+
+    <p>The dashboard shows today's execution plan:</p>
+    <ul>
+        <li>Which users will be processed</li>
+        <li>What TTPs will be executed for each user</li>
+        <li>Expected duration</li>
+    </ul>
+
+    <div class="warning">
+        <strong>Important:</strong> Smart Rotation requires users with valid credentials. Session-based users (token auth) cannot be used for scheduled execution.
+    </div>
+
+    <hr>
+
+    <h2 id="ttp-classification">TTP Classification</h2>
+
+    <p>Smart Rotation automatically classifies TTPs into baseline and attack categories:</p>
+
+    <h3>Baseline TTPs (12 techniques)</h3>
+    <p>Normal user activities that establish behavioral baseline:</p>
+    <ul>
+        <li><strong>Discovery:</strong> System info, network connections, file searches</li>
+        <li><strong>Reconnaissance:</strong> User enumeration, domain info</li>
+    </ul>
+
+    <h3>Attack TTPs (43 techniques)</h3>
+    <p>Malicious activities that trigger UEBA alerts:</p>
+    <ul>
+        <li><strong>Execution:</strong> PowerShell, command line, scripting</li>
+        <li><strong>Persistence:</strong> Registry keys, scheduled tasks</li>
+        <li><strong>Privilege Escalation:</strong> Token manipulation, UAC bypass</li>
+        <li><strong>Credential Access:</strong> Credential dumping, keylogging</li>
+        <li><strong>Lateral Movement:</strong> Remote services, pass-the-hash</li>
+        <li><strong>Defense Evasion:</strong> Disabling security, obfuscation</li>
+        <li><strong>Exfiltration:</strong> Data staging, transfer</li>
+        <li><strong>Command and Control:</strong> Encoded commands, web protocols</li>
+        <li><strong>Collection:</strong> Screen capture, clipboard</li>
+        <li><strong>Impact:</strong> Data destruction, defacement</li>
+    </ul>
+
+    <div class="note">
+        <strong>Note:</strong> TTP classification is stored in <code>data/ttp-classification.json</code> and can be customized.
+    </div>
+
+    <hr>
+
+    <h2 id="best-practices">Best Practices</h2>
+
+    <h3>For Manual Scheduling</h3>
+
+    <ul>
+        <li><strong>Test first:</strong> Run schedules manually before enabling automation</li>
+        <li><strong>Stagger times:</strong> Don't schedule multiple jobs at the same time</li>
+        <li><strong>Monitor logs:</strong> Check execution history for failures</li>
+        <li><strong>Use cleanup:</strong> Enable "Run cleanup" to avoid artifact buildup</li>
+    </ul>
+
+    <h3>For Smart Rotation</h3>
+
+    <ul>
+        <li><strong>Start small:</strong> Begin with 4-8 users, then scale up</li>
+        <li><strong>Use AD users:</strong> Create dedicated AD accounts for realistic simulation</li>
+        <li><strong>Verify UEBA:</strong> Confirm baseline TTPs don't trigger alerts</li>
+        <li><strong>Monitor Day 1:</strong> Watch the first attack day for alert generation</li>
+        <li><strong>Adjust timing:</strong> Set execution time during business hours for realism</li>
+    </ul>
+
+    <h3>General Tips</h3>
+
+    <ul>
+        <li><strong>Credential testing:</strong> Test all user credentials before scheduling</li>
+        <li><strong>Admin privileges:</strong> Ensure MAGNETO runs with admin rights for Task Scheduler</li>
+        <li><strong>Disk space:</strong> Monitor log file growth over time</li>
+        <li><strong>Maintenance:</strong> Review and clean up old schedules periodically</li>
+    </ul>
+
+    <hr>
+
+    <h2>Dashboard Statistics</h2>
+
+    <p>The Smart Rotation dashboard shows five key counters:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Counter</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Total Users</strong></td>
+                <td>All users in rotation</td>
+            </tr>
+            <tr>
+                <td><strong>In Baseline</strong></td>
+                <td>Users building normal behavior</td>
+            </tr>
+            <tr>
+                <td><strong>In Attack</strong></td>
+                <td>Users executing attack TTPs</td>
+            </tr>
+            <tr>
+                <td><strong>In Cooldown</strong></td>
+                <td>Users waiting for next cycle</td>
+            </tr>
+            <tr>
+                <td><strong>Pending</strong></td>
+                <td>Users waiting for enrollment</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h2>Troubleshooting</h2>
+
+    <h3>Schedule not running</h3>
+    <ul>
+        <li>Check Windows Task Scheduler for errors</li>
+        <li>Verify MAGNETO has admin privileges</li>
+        <li>Ensure the scheduled time has passed</li>
+        <li>Check if schedule is enabled (not disabled)</li>
+    </ul>
+
+    <h3>User stuck in phase</h3>
+    <ul>
+        <li>Check TTP execution count meets minimum threshold</li>
+        <li>Verify user credentials are valid</li>
+        <li>Look for execution errors in console/logs</li>
+    </ul>
+
+    <h3>No UEBA alerts generated</h3>
+    <ul>
+        <li>Ensure baseline phase completed (42+ TTPs)</li>
+        <li>Verify attack TTPs are in UEBA's detection rules</li>
+        <li>Check UEBA is receiving Windows events</li>
+        <li>Confirm Day 1 burst executed (10 TTPs)</li>
+    </ul>
+
+    <h3>Windows Task Scheduler errors</h3>
+    <ul>
+        <li>Run MAGNETO as Administrator</li>
+        <li>Check Task Scheduler service is running</li>
+        <li>Verify no conflicting task names in "MAGNETO" folder</li>
+    </ul>
+
+    <div class="footer">
+        <p>MAGNETO V4 - Living Off The Land Attack Simulation Framework</p>
+        <p>For authorized security testing and red team exercises only.</p>
+    </div>
+</body>
+</html>

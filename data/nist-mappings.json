@@ -1,0 +1,348 @@
+{
+    "version": "1.0.0",
+    "description": "NIST 800-53 Rev 5 and CSF 2.0 mappings for MITRE ATT&CK techniques",
+    "controlFamilies": {
+        "AC": "Access Control",
+        "AT": "Awareness and Training",
+        "AU": "Audit and Accountability",
+        "CA": "Security Assessment and Authorization",
+        "CM": "Configuration Management",
+        "CP": "Contingency Planning",
+        "IA": "Identification and Authentication",
+        "IR": "Incident Response",
+        "MA": "Maintenance",
+        "MP": "Media Protection",
+        "PE": "Physical and Environmental Protection",
+        "PL": "Planning",
+        "PM": "Program Management",
+        "PS": "Personnel Security",
+        "PT": "PII Processing and Transparency",
+        "RA": "Risk Assessment",
+        "SA": "System and Services Acquisition",
+        "SC": "System and Communications Protection",
+        "SI": "System and Information Integrity",
+        "SR": "Supply Chain Risk Management"
+    },
+    "controls": {
+        "AC-02": "Account Management",
+        "AC-03": "Access Enforcement",
+        "AC-04": "Information Flow Enforcement",
+        "AC-05": "Separation of Duties",
+        "AC-06": "Least Privilege",
+        "AC-07": "Unsuccessful Logon Attempts",
+        "AC-16": "Security and Privacy Attributes",
+        "AC-17": "Remote Access",
+        "AU-02": "Event Logging",
+        "AU-03": "Content of Audit Records",
+        "AU-06": "Audit Record Review, Analysis, and Reporting",
+        "AU-12": "Audit Record Generation",
+        "CA-07": "Continuous Monitoring",
+        "CM-02": "Baseline Configuration",
+        "CM-03": "Configuration Change Control",
+        "CM-05": "Access Restrictions for Change",
+        "CM-06": "Configuration Settings",
+        "CM-07": "Least Functionality",
+        "CM-08": "System Component Inventory",
+        "CM-11": "User-Installed Software",
+        "CP-09": "System Backup",
+        "CP-10": "System Recovery and Reconstitution",
+        "IA-02": "Identification and Authentication",
+        "IA-04": "Identifier Management",
+        "IA-05": "Authenticator Management",
+        "IR-04": "Incident Handling",
+        "IR-05": "Incident Monitoring",
+        "IR-06": "Incident Reporting",
+        "MA-04": "Nonlocal Maintenance",
+        "PE-03": "Physical Access Control",
+        "RA-05": "Vulnerability Monitoring and Scanning",
+        "SA-08": "Security and Privacy Engineering Principles",
+        "SA-10": "Developer Configuration Management",
+        "SA-11": "Developer Testing and Evaluation",
+        "SA-17": "Developer Security and Privacy Architecture and Design",
+        "SC-04": "Information in Shared System Resources",
+        "SC-07": "Boundary Protection",
+        "SC-08": "Transmission Confidentiality and Integrity",
+        "SC-12": "Cryptographic Key Establishment and Management",
+        "SC-13": "Cryptographic Protection",
+        "SC-23": "Session Authenticity",
+        "SC-28": "Protection of Information at Rest",
+        "SC-39": "Process Isolation",
+        "SC-46": "Cross Domain Policy Enforcement",
+        "SI-02": "Flaw Remediation",
+        "SI-03": "Malicious Code Protection",
+        "SI-04": "System Monitoring",
+        "SI-07": "Software, Firmware, and Information Integrity",
+        "SI-10": "Information Input Validation",
+        "SI-16": "Memory Protection"
+    },
+    "csfFunctions": {
+        "Identify": "Develop organizational understanding to manage cybersecurity risk",
+        "Protect": "Develop and implement safeguards to ensure delivery of services",
+        "Detect": "Develop and implement activities to identify cybersecurity events",
+        "Respond": "Develop and implement activities to take action regarding detected events",
+        "Recover": "Develop and implement activities to restore capabilities impaired by cybersecurity events",
+        "Govern": "Establish and monitor organization's cybersecurity risk management strategy, expectations, and policy"
+    },
+    "techniqueMappings": {
+        "T1046": {
+            "controls": ["AC-04", "CM-07", "SC-07", "SI-04", "AU-02", "AU-12", "RA-05"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1087.001": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AU-02", "AU-12", "SI-04", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1059.001": {
+            "controls": ["CM-07", "SI-03", "SI-04", "SI-07", "AU-02", "AU-12", "AC-03", "CM-11"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1543.003": {
+            "controls": ["AC-03", "AC-06", "CM-02", "CM-03", "CM-05", "CM-06", "SI-03", "SI-04", "SI-07", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1562.001": {
+            "controls": ["AC-03", "AC-06", "CM-02", "CM-05", "CM-06", "SI-03", "SI-04", "SI-07", "AU-02", "CA-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1070.004": {
+            "controls": ["AU-02", "AU-03", "AU-06", "AU-12", "SI-04", "CM-06", "AC-03"],
+            "csfFunctions": ["Detect", "Protect", "Respond"]
+        },
+        "T1003.003": {
+            "controls": ["AC-02", "AC-03", "AC-05", "AC-06", "AC-16", "CA-07", "CM-02", "CM-06", "CM-07", "IA-02", "IA-05", "SI-03", "SI-04", "SI-07", "AU-02", "AU-12", "SC-28", "SC-04"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1049": {
+            "controls": ["AC-04", "CM-07", "SC-07", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1016": {
+            "controls": ["CM-07", "SI-04", "AU-02", "AU-12", "AC-04"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1033": {
+            "controls": ["AC-02", "AC-03", "CM-07", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1053.005": {
+            "controls": ["AC-02", "AC-03", "AC-06", "CM-02", "CM-05", "CM-06", "SI-04", "AU-02", "AU-12", "SI-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1574.002": {
+            "controls": ["AC-03", "AC-06", "CM-02", "CM-05", "CM-06", "CM-07", "SI-03", "SI-04", "SI-07", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1021.002": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AC-17", "CM-06", "CM-07", "IA-02", "SC-07", "SI-04", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1550.002": {
+            "controls": ["AC-02", "AC-03", "AC-06", "IA-02", "IA-05", "SI-04", "AU-02", "AU-12", "SC-23"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1112": {
+            "controls": ["AC-03", "AC-06", "CM-02", "CM-05", "CM-06", "SI-04", "SI-07", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1136.001": {
+            "controls": ["AC-02", "AC-03", "AC-06", "CM-06", "IA-04", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1027": {
+            "controls": ["AC-03", "CM-02", "CM-06", "CM-07", "SI-02", "SI-03", "SI-04", "SI-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1548.002": {
+            "controls": ["AC-02", "AC-03", "AC-05", "AC-06", "CA-07", "CM-02", "CM-05", "CM-06", "CM-07", "SI-03", "SI-04"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1134.001": {
+            "controls": ["AC-02", "AC-03", "AC-05", "AC-06", "CM-06", "CM-07", "SC-39", "SI-03", "SI-04", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1547.010": {
+            "controls": ["AC-03", "AC-06", "CM-02", "CM-05", "CM-06", "SI-03", "SI-04", "SI-07", "AU-02", "MA-04"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1557.001": {
+            "controls": ["AC-04", "SC-07", "SC-08", "SC-23", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1202": {
+            "controls": ["AC-03", "AC-06", "CM-02", "CM-06", "CM-07", "SI-03", "SI-04", "SI-07", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1105": {
+            "controls": ["AC-04", "CM-07", "SC-07", "SI-03", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1218.011": {
+            "controls": ["CM-07", "CM-11", "SI-03", "SI-04", "SI-07", "AU-02", "AU-12", "AC-03"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1041": {
+            "controls": ["AC-04", "SC-07", "SC-08", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1055.100": {
+            "controls": ["AC-03", "AC-06", "CM-07", "SC-39", "SI-03", "SI-04", "SI-16", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1546.015": {
+            "controls": ["AC-03", "AC-06", "CM-02", "CM-05", "CM-06", "SI-03", "SI-04", "SI-07", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1560.002": {
+            "controls": ["SC-07", "SC-08", "SC-28", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1102.002": {
+            "controls": ["AC-04", "SC-07", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1218.010": {
+            "controls": ["CM-07", "CM-11", "SI-03", "SI-04", "SI-07", "AU-02", "AU-12", "AC-03"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1197": {
+            "controls": ["AC-03", "AC-06", "CM-06", "CM-07", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1482": {
+            "controls": ["AC-04", "CM-02", "CM-06", "CM-07", "RA-05", "SA-08", "SA-17", "SC-07", "SC-46"],
+            "csfFunctions": ["Detect", "Protect", "Identify", "Govern"]
+        },
+        "T1518.001": {
+            "controls": ["CM-07", "CM-08", "SI-04", "AU-02", "AU-12", "RA-05"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1063": {
+            "controls": ["CM-06", "CM-07", "SC-07", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1047": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AC-17", "CM-06", "CM-07", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1569.002": {
+            "controls": ["AC-02", "AC-03", "AC-06", "CM-02", "CM-05", "CM-06", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1041.001": {
+            "controls": ["AC-04", "SC-07", "SC-08", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1048.003": {
+            "controls": ["AC-04", "SC-07", "SC-08", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1486": {
+            "controls": ["AC-03", "AC-06", "CP-09", "CP-10", "SC-28", "SI-03", "SI-04", "SI-07", "AU-02", "IR-04"],
+            "csfFunctions": ["Detect", "Protect", "Recover", "Respond"]
+        },
+        "T1490": {
+            "controls": ["AC-03", "AC-06", "CP-09", "CP-10", "CM-06", "SI-04", "AU-02", "IR-04"],
+            "csfFunctions": ["Detect", "Protect", "Recover", "Respond"]
+        },
+        "T1489": {
+            "controls": ["AC-03", "AC-06", "CM-06", "CP-10", "SI-04", "AU-02", "IR-04"],
+            "csfFunctions": ["Detect", "Protect", "Recover", "Respond"]
+        },
+        "T1566.001": {
+            "controls": ["AC-04", "AT-02", "SC-07", "SC-08", "SI-03", "SI-04", "SI-08", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1078": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AC-07", "IA-02", "IA-05", "SI-04", "AU-02", "AU-06", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1082": {
+            "controls": ["CM-07", "CM-08", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1083": {
+            "controls": ["AC-03", "AC-06", "CM-07", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1018": {
+            "controls": ["AC-04", "CM-07", "SC-07", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1005": {
+            "controls": ["AC-03", "AC-06", "SC-28", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1560.001": {
+            "controls": ["SC-07", "SC-28", "SI-04", "AU-02", "AU-12", "CM-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1021.001": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AC-17", "CM-06", "CM-07", "IA-02", "SC-07", "SI-04", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1529": {
+            "controls": ["AC-03", "AC-06", "CM-06", "CP-10", "SI-04", "AU-02", "IR-04"],
+            "csfFunctions": ["Detect", "Protect", "Recover", "Respond"]
+        },
+        "T1020": {
+            "controls": ["AC-04", "SC-07", "SC-08", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1074.001": {
+            "controls": ["AC-03", "AC-06", "SC-28", "SI-04", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1190": {
+            "controls": ["AC-04", "CM-02", "CM-06", "RA-05", "SA-11", "SC-07", "SI-02", "SI-03", "SI-04", "SI-10"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1133": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AC-17", "CM-06", "CM-07", "IA-02", "IA-05", "SC-07", "SI-04"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1591": {
+            "controls": ["AC-04", "SC-07", "SI-04", "AU-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1057": {
+            "controls": ["SI-04", "AU-02", "AU-12", "CM-07", "AC-06", "SC-39"],
+            "csfFunctions": ["Detect", "Identify", "Protect"]
+        },
+        "T1012": {
+            "controls": ["SI-04", "AU-02", "AU-12", "CM-06", "CM-07", "AC-03"],
+            "csfFunctions": ["Detect", "Identify", "Protect"]
+        },
+        "T1007": {
+            "controls": ["SI-04", "AU-02", "AU-12", "CM-07", "CM-08", "AC-06"],
+            "csfFunctions": ["Detect", "Identify", "Protect"]
+        },
+        "T1087.002": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AU-02", "AU-12", "SI-04", "IA-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1069.001": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AU-02", "AU-12", "SI-04"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1069.002": {
+            "controls": ["AC-02", "AC-03", "AC-06", "AU-02", "AU-12", "SI-04", "IA-02"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1003.001": {
+            "controls": ["AC-03", "AC-06", "IA-02", "IA-05", "SI-04", "SI-16", "SC-39", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Respond"]
+        },
+        "T1547.001": {
+            "controls": ["CM-02", "CM-03", "CM-06", "CM-07", "SI-03", "SI-04", "SI-07", "AU-02", "AU-12"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        },
+        "T1555.003": {
+            "controls": ["AC-03", "IA-05", "SC-28", "SI-04", "AU-02", "AU-12", "SC-12"],
+            "csfFunctions": ["Detect", "Protect", "Respond"]
+        },
+        "T1071.001": {
+            "controls": ["AC-04", "SC-07", "SC-08", "SI-04", "AU-02", "AU-12", "CA-07"],
+            "csfFunctions": ["Detect", "Protect", "Identify"]
+        }
+    }
+}

@@ -9,7 +9,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "netstat -ano | Out-Null",
+                           "command":  "netstat -ano",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -24,7 +24,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "net user | Out-Null",
+                           "command":  "net user",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -39,7 +39,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "powershell.exe -Command \"Get-Process\" | Out-Null",
+                           "command":  "powershell.exe -Command \"Get-Process\"",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -54,7 +54,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "sc.exe create MagnetoSvc_$([guid]::NewGuid().ToString().Substring(0,8)) binPath= \"cmd.exe /c echo Simulated\" start= demand | Out-Null",
+                           "command":  "sc.exe create MagnetoSvc_$([guid]::NewGuid().ToString().Substring(0,8)) binPath= \"cmd.exe /c echo Simulated\" start= demand",
                            "cleanupCommand":  "sc.exe delete MagnetoSvc_* 2\u003e$null",
                            "enabled":  true,
                            "description":  {
@@ -114,7 +114,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-NetTCPConnection | Select-Object -First 10 | Out-Null",
+                           "command":  "netstat -an | Select-Object -First 15",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -129,7 +129,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "ipconfig /all | Out-Null",
+                           "command":  "ipconfig /all",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -144,7 +144,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "whoami /all | Out-Null",
+                           "command":  "whoami /all",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -159,7 +159,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "schtasks /create /tn \"MagnetoTask_$(Get-Random)\" /tr \"cmd /c echo test\" /sc onlogon /f | Out-Null",
+                           "command":  "schtasks /create /tn \"MagnetoTask_$(Get-Random)\" /tr \"cmd /c echo test\" /sc onlogon /f",
                            "cleanupCommand":  "schtasks /delete /tn \"MagnetoTask_*\" /f 2\u003e$null",
                            "enabled":  true,
                            "description":  {
@@ -174,7 +174,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "[System.Reflection.Assembly]::LoadWithPartialName(\u0027System.Core\u0027) | Out-Null",
+                           "command":  "[System.Reflection.Assembly]::LoadWithPartialName(\u0027System.Core\u0027)",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -189,7 +189,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "net share | Out-Null",
+                           "command":  "net share",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -204,7 +204,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-WmiObject Win32_LogonSession | Select-Object -First 5 | Out-Null",
+                           "command":  "Get-WmiObject Win32_LogonSession | Select-Object -First 5",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -219,7 +219,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "$regPath = \u0027HKCU:\\Software\\MagnetoTest\u0027; New-Item -Path $regPath -Force | Out-Null; Remove-Item -Path $regPath -Force",
+                           "command":  "$regPath = \u0027HKCU:\\Software\\MagnetoTest\u0027; New-Item -Path $regPath -Force; Remove-Item -Path $regPath -Force",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -249,7 +249,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "$encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(\u0027test\u0027)); [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded)) | Out-Null",
+                           "command":  "$encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(\u0027test\u0027)); [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -264,7 +264,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-ItemProperty \u0027HKCU:\\Software\\Classes\\ms-settings\\shell\\open\\command\u0027 -ErrorAction SilentlyContinue | Out-Null",
+                           "command":  "Get-ItemProperty \u0027HKCU:\\Software\\Classes\\ms-settings\\shell\\open\\command\u0027 -ErrorAction SilentlyContinue",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -279,7 +279,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "[System.Security.Principal.WindowsIdentity]::GetCurrent() | Out-Null",
+                           "command":  "[System.Security.Principal.WindowsIdentity]::GetCurrent()",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -294,7 +294,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "Get-ItemProperty \u0027HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\u0027 -ErrorAction SilentlyContinue | Out-Null",
+                           "command":  "Get-ItemProperty \u0027HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Print\\Monitors\u0027 -ErrorAction SilentlyContinue",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -309,7 +309,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-NetAdapter | Select-Object Name, Status | Out-Null",
+                           "command":  "Get-NetAdapter | Select-Object Name, Status",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -324,7 +324,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "forfiles /P C:\\Windows /M notepad.exe /C \"cmd /c echo test\" 2\u003e$null | Out-Null",
+                           "command":  "forfiles /P C:\\Windows /M notepad.exe /C \"cmd /c echo test\" 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -339,7 +339,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "(New-Object Net.WebClient).DownloadString(\u0027http://localhost/test\u0027) 2\u003e$null | Out-Null",
+                           "command":  "(New-Object Net.WebClient).DownloadString(\u0027http://localhost/test\u0027) 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -354,7 +354,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "rundll32.exe javascript:\"\\..\\mshtml,RunHTMLApplication\";alert(\u0027test\u0027) 2\u003e$null | Out-Null",
+                           "command":  "rundll32.exe javascript:\"\\..\\mshtml,RunHTMLApplication\";alert(\u0027test\u0027) 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -369,7 +369,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "$data = Get-Process | Select-Object -First 5 | ConvertTo-Json; $data | Out-Null",
+                           "command":  "$data = Get-Process | Select-Object -First 5 | ConvertTo-Json; $data",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -385,7 +385,7 @@
                            "aptGroup":  "APT41",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "Get-WmiObject Win32_Process -Filter \"Name=\u0027svchost.exe\u0027\" | Select-Object -First 3 | Out-Null",
+                           "command":  "Get-WmiObject Win32_Process -Filter \"Name=\u0027svchost.exe\u0027\" | Select-Object -First 3",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -401,7 +401,7 @@
                            "aptGroup":  "APT29",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "Get-WmiObject -Namespace root\\subscription -Class __EventFilter -ErrorAction SilentlyContinue | Out-Null",
+                           "command":  "Get-WmiObject -Namespace root\\subscription -Class __EventFilter -ErrorAction SilentlyContinue",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -433,7 +433,7 @@
                            "aptGroup":  "APT41",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Test-NetConnection outlook.office365.com -Port 443 -WarningAction SilentlyContinue | Out-Null",
+                           "command":  "Test-NetConnection outlook.office365.com -Port 443 -WarningAction SilentlyContinue",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -448,7 +448,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "regsvr32 /s /n /u scrobj.dll 2\u003e$null | Out-Null",
+                           "command":  "regsvr32 /s /n /u scrobj.dll 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -463,7 +463,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "bitsadmin /list /allusers 2\u003e$null | Out-Null",
+                           "command":  "bitsadmin /list /allusers 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -478,7 +478,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  true,
-                           "command":  "nltest /domain_trusts 2\u003e$null | Out-Null",
+                           "command":  "nltest /domain_trusts 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -493,7 +493,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like \u0027*security*\u0027 -or $_.Name -like \u0027*antivirus*\u0027 } | Select-Object -First 5 | Out-Null",
+                           "command":  "Get-Process | Where-Object { $_.ProcessName -match 'defender|antivirus|mcafee|symantec|norton|kaspersky|avg|avast|sophos|trend|crowdstrike|sentinel|carbon' } | Select-Object ProcessName, Id -First 10",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -508,7 +508,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-NetFirewallProfile | Select-Object Name, Enabled | Out-Null",
+                           "command":  "netsh advfirewall show allprofiles state",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -523,7 +523,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  true,
-                           "command":  "Get-WmiObject Win32_OperatingSystem | Select-Object Caption, Version | Out-Null",
+                           "command":  "Get-WmiObject Win32_OperatingSystem | Select-Object Caption, Version",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -538,7 +538,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  true,
                            "requiresDomain":  true,
-                           "command":  "sc.exe query state= all | Select-Object -First 20 | Out-Null",
+                           "command":  "sc.exe query state= all | Select-Object -First 20",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -553,7 +553,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "$body = @{data=\u0027test\u0027} | ConvertTo-Json; $body | Out-Null",
+                           "command":  "$body = @{data=\u0027test\u0027} | ConvertTo-Json; $body",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -568,7 +568,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Resolve-DnsName microsoft.com -Type TXT -ErrorAction SilentlyContinue | Out-Null",
+                           "command":  "Resolve-DnsName microsoft.com -Type TXT -ErrorAction SilentlyContinue",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -583,7 +583,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "$testData = \u0027MagnetoEncryptionTest\u0027; $encrypted = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($testData)); $encrypted | Out-Null",
+                           "command":  "$testData = \u0027MagnetoEncryptionTest\u0027; $encrypted = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($testData)); $encrypted",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -598,7 +598,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "vssadmin list shadows 2\u003e$null | Out-Null",
+                           "command":  "vssadmin list shadows 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -613,7 +613,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "Get-Service | Where-Object { $_.Status -eq \u0027Running\u0027 } | Select-Object -First 10 | Out-Null",
+                           "command":  "Get-Service | Where-Object { $_.Status -eq \u0027Running\u0027 } | Select-Object -First 10",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -643,7 +643,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "query user 2\u003e$null | Out-Null",
+                           "command":  "query user 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -658,7 +658,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "systeminfo | Out-Null",
+                           "command":  "hostname; $env:COMPUTERNAME; $env:OS; $env:PROCESSOR_ARCHITECTURE; [System.Environment]::OSVersion.VersionString; $env:USERDOMAIN; (Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion').ProductName",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -673,7 +673,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 50 | Out-Null",
+                           "command":  "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 50",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -688,7 +688,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "net view 2\u003e$null | Out-Null",
+                           "command":  "net view 2\u003e$null",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -703,7 +703,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-Content -Path \"$env:USERPROFILE\\*.txt\" -ErrorAction SilentlyContinue | Select-Object -First 10 | Out-Null",
+                           "command":  "Get-Content -Path \"$env:USERPROFILE\\*.txt\" -ErrorAction SilentlyContinue | Select-Object -First 10",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -733,7 +733,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-ItemProperty \u0027HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server\u0027 -Name fDenyTSConnections -ErrorAction SilentlyContinue | Out-Null",
+                           "command":  "Get-ItemProperty \u0027HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server\u0027 -Name fDenyTSConnections -ErrorAction SilentlyContinue",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -748,7 +748,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  true,
                            "requiresDomain":  false,
-                           "command":  "shutdown /? | Out-Null",
+                           "command":  "shutdown /?",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -763,7 +763,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "$schedule = Get-ScheduledTask -ErrorAction SilentlyContinue | Select-Object -First 5; $schedule | Out-Null",
+                           "command":  "$schedule = Get-ScheduledTask -ErrorAction SilentlyContinue | Select-Object -First 5; $schedule",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -778,7 +778,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "New-Item -ItemType Directory -Path \"$env:TEMP\\MagnetoStaging\" -Force | Out-Null; Remove-Item -Path \"$env:TEMP\\MagnetoStaging\" -Recurse -Force",
+                           "command":  "New-Item -ItemType Directory -Path \"$env:TEMP\\MagnetoStaging\" -Force; Remove-Item -Path \"$env:TEMP\\MagnetoStaging\" -Recurse -Force",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -793,7 +793,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-NetTCPConnection -State Listen | Select-Object -First 10 | Out-Null",
+                           "command":  "netstat -an | Select-String 'LISTENING' | Select-Object -First 10",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -808,7 +808,7 @@
                            "source":  "built-in",
                            "requiresAdmin":  false,
                            "requiresDomain":  false,
-                           "command":  "Get-ItemProperty \u0027HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services\u0027 -ErrorAction SilentlyContinue | Out-Null",
+                           "command":  "Get-ItemProperty \u0027HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services\u0027 -ErrorAction SilentlyContinue",
                            "cleanupCommand":  "",
                            "enabled":  true,
                            "description":  {
@@ -829,10 +829,160 @@
                                                "realWorldUsage":  "In real-world attacks, adversaries use **T1591 (Gather Organization Information)** to study a companyâ€™s identity structure, domain relationships, and key personnel before launching targeted attacks. Campaigns like **SolarWinds, LAPSUS$, and FIN7** used organizational intelligence to identify high-value systems, trusted partners, and privileged users. This reconnaissance enabled more effective **spear-phishing, help-desk impersonation, and supply-chain compromise** rather than random exploitation. Without this phase, many modern intrusions would fail before reaching privileged access.",
                                                "whyTrack":  "Tracking MITRE ATT\u0026CK T1591 â€“ Gather Organization Information is not a â€œnice to haveâ€ â€” it is one of the strongest early-warning indicators of an attack before exploitation even begins. It gives SOC teams the earliest chance to break the kill chain while the attacker is still planning and mapping."
                                            },
-                           "command":  "set\nnltest /domain_trusts\nnltest /dclist:%USERDOMAIN%\necho %USERDOMAIN%\necho %LOGONSERVER%",
+                           "command":  "Get-ChildItem env: | Select-Object -First 20\nnltest /domain_trusts\nnltest /dclist:$env:USERDOMAIN\n$env:USERDOMAIN\n$env:LOGONSERVER",
                            "modifiedAt":  "2025-12-04T23:35:21.111Z",
                            "enabled":  true
+                       },
+                       {
+                           "id":  "T1057",
+                           "name":  "Process Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-Process | Select-Object ProcessName, Id, CPU, WorkingSet | Sort-Object CPU -Descending | Select-Object -First 20",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Process enumeration reveals running applications, security tools, and potential targets for injection. Unusual process queries from non-admin users or automated scripts are suspicious indicators of reconnaissance.",
+                                               "realWorldUsage":  "Used by virtually all APT groups including APT41, Lazarus, APT29, and FIN7 immediately after initial access to identify security software, running applications, and injection targets. Cobalt Strike beacon routinely performs process discovery."
+                                           }
+                       },
+                       {
+                           "id":  "T1012",
+                           "name":  "Query Registry",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run' -ErrorAction SilentlyContinue; Get-ItemProperty 'HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run' -ErrorAction SilentlyContinue",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Registry queries reveal installed software, persistence mechanisms, and system configuration. Monitoring registry access patterns helps detect reconnaissance and persistence establishment attempts.",
+                                               "realWorldUsage":  "Lazarus Group, APT41, and APT28 query registry keys to discover installed software, security products, and existing persistence mechanisms before deploying their own malware."
+                                           }
+                       },
+                       {
+                           "id":  "T1007",
+                           "name":  "System Service Discovery",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-Service | Where-Object {$_.Status -eq 'Running'} | Select-Object Name, DisplayName, Status | Select-Object -First 25",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Service enumeration identifies security software, databases, and potential persistence targets. Unusual service queries indicate reconnaissance activity that often precedes privilege escalation or lateral movement.",
+                                               "realWorldUsage":  "FIN7, APT28, and ransomware operators enumerate services to identify security tools to disable, databases to target, and services to abuse for persistence or lateral movement."
+                                           }
+                       },
+                       {
+                           "id":  "T1087.002",
+                           "name":  "Account Discovery: Domain Account",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  true,
+                           "command":  "net user /domain 2>$null | Select-Object -First 30",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Domain account enumeration reveals privileged users, service accounts, and potential targets for credential theft. Bulk domain user queries from workstations are strong indicators of reconnaissance.",
+                                               "realWorldUsage":  "APT29, APT28, and Lazarus Group enumerate domain accounts to identify high-value targets like domain admins, service accounts, and users with access to sensitive systems."
+                                           }
+                       },
+                       {
+                           "id":  "T1069.001",
+                           "name":  "Permission Groups Discovery: Local Groups",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "net localgroup; net localgroup Administrators 2>$null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Local group enumeration reveals administrative access and privilege levels. Queries for administrator group membership indicate attempts to identify privileged accounts for targeting.",
+                                               "realWorldUsage":  "All major APT groups enumerate local groups to identify accounts with administrative privileges, which are prime targets for credential theft and privilege escalation."
+                                           }
+                       },
+                       {
+                           "id":  "T1069.002",
+                           "name":  "Permission Groups Discovery: Domain Groups",
+                           "tactic":  "Discovery",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  true,
+                           "command":  "net group /domain 2>$null | Select-Object -First 25; net group \"Domain Admins\" /domain 2>$null",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Domain group enumeration reveals organizational structure, privileged groups, and high-value targets. Queries for Domain Admins and Enterprise Admins are critical indicators of targeted attacks.",
+                                               "realWorldUsage":  "APT29 (Cozy Bear), APT28 (Fancy Bear), and Lazarus Group heavily rely on domain group enumeration to map AD structure and identify paths to domain dominance."
+                                           }
+                       },
+                       {
+                           "id":  "T1003.001",
+                           "name":  "OS Credential Dumping: LSASS Memory",
+                           "tactic":  "Credential Access",
+                           "source":  "built-in",
+                           "requiresAdmin":  true,
+                           "requiresDomain":  false,
+                           "command":  "Get-Process lsass -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, WorkingSet",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "LSASS memory access is the most common credential theft technique. Any process accessing LSASS memory should trigger high-priority alerts. Monitor for Mimikatz signatures and memory dumping tools.",
+                                               "realWorldUsage":  "Used by virtually every APT group and ransomware operator. Mimikatz, Cobalt Strike, and custom tools dump LSASS to extract passwords, hashes, and Kerberos tickets for lateral movement."
+                                           }
+                       },
+                       {
+                           "id":  "T1547.001",
+                           "name":  "Boot or Logon Autostart Execution: Registry Run Keys",
+                           "tactic":  "Persistence",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -ErrorAction SilentlyContinue; Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -ErrorAction SilentlyContinue",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Registry Run keys are the most common persistence mechanism. Monitor for new entries, especially those pointing to unusual paths, encoded commands, or recently created executables.",
+                                               "realWorldUsage":  "APT41, Lazarus, FIN7, and virtually all malware families use Run keys for persistence. This technique survives reboots and executes with user privileges on login."
+                                           }
+                       },
+                       {
+                           "id":  "T1555.003",
+                           "name":  "Credentials from Password Stores: Web Browsers",
+                           "tactic":  "Credential Access",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Get-ChildItem \"$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\Default\" -ErrorAction SilentlyContinue | Where-Object {$_.Name -match 'Login|Cookies|History'} | Select-Object Name, Length",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "Browser credential theft provides access to web applications, email, and cloud services. Monitor for access to browser profile directories and credential database files.",
+                                               "realWorldUsage":  "Lazarus Group (OtterCookie malware), FIN7, and information stealers like RedLine and Raccoon specifically target browser-stored credentials for account takeover and financial theft."
+                                           }
+                       },
+                       {
+                           "id":  "T1071.001",
+                           "name":  "Application Layer Protocol: Web Protocols",
+                           "tactic":  "Command and Control",
+                           "source":  "built-in",
+                           "requiresAdmin":  false,
+                           "requiresDomain":  false,
+                           "command":  "Test-NetConnection -ComputerName www.microsoft.com -Port 443 -WarningAction SilentlyContinue | Select-Object ComputerName, RemotePort, TcpTestSucceeded",
+                           "cleanupCommand":  "",
+                           "enabled":  true,
+                           "description":  {
+                                               "whyTrack":  "HTTP/HTTPS C2 traffic blends with legitimate web browsing. Monitor for beaconing patterns, unusual user agents, and connections to newly registered or low-reputation domains.",
+                                               "realWorldUsage":  "All major APT groups use HTTPS for C2 to blend with normal traffic. APT29 uses legitimate cloud services, APT41 uses SharePoint/O365, and Cobalt Strike defaults to HTTPS beacons."
+                                           }
                        }
                    ],
-    "lastUpdated":  "2025-12-04T23:35:21.112Z"
+    "lastUpdated":  "2026-01-25T00:00:00.000Z"
 }

@@ -23,10 +23,30 @@
                 <span class="tagline">Living Off The Land Attack Simulator</span>
             </div>
             <div class="header-right">
+                <div class="theme-selector">
+                    <label for="theme-select">Theme:</label>
+                    <select id="theme-select" class="theme-select">
+                        <option value="matrix-green">Matrix Green</option>
+                        <option value="cyber-blue">Cyber Blue</option>
+                        <option value="blood-red">Blood Red</option>
+                        <option value="purple-haze">Purple Haze</option>
+                        <option value="amber-terminal">Amber Terminal</option>
+                        <option value="monochrome">Monochrome</option>
+                    </select>
+                    <div class="theme-preview">
+                        <span class="theme-dot"></span>
+                    </div>
+                </div>
                 <div class="status-indicator" id="status-indicator">
                     <span class="status-dot"></span>
                     <span class="status-text">Connecting...</span>
                 </div>
+                <button class="btn-icon btn-siem" id="btn-siem-logging" title="SIEM Logging">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                </button>
+                <button class="btn-icon btn-restart" id="btn-restart-server" title="Restart Server">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                </button>
                 <button class="btn-icon" id="btn-settings" title="Settings">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
                 </button>
@@ -36,29 +56,33 @@
         <!-- Main Content Area -->
         <div class="main-content">
             <!-- Sidebar Navigation -->
-            <nav class="sidebar">
+            <nav class="sidebar" id="sidebar">
+                <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle Sidebar">
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="icon-collapse"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="icon-expand"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </button>
                 <ul class="nav-menu">
-                    <li class="nav-item active" data-view="dashboard">
+                    <li class="nav-item active" data-view="dashboard" data-tooltip="Dashboard">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
                         <span>Dashboard</span>
                     </li>
-                    <li class="nav-item" data-view="ttps">
+                    <li class="nav-item" data-view="ttps" data-tooltip="TTPs">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                         <span>TTPs</span>
                     </li>
-                    <li class="nav-item" data-view="execute">
+                    <li class="nav-item" data-view="execute" data-tooltip="Execute">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                         <span>Execute</span>
                     </li>
-                    <li class="nav-item" data-view="scheduler">
+                    <li class="nav-item" data-view="scheduler" data-tooltip="Scheduler">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
                         <span>Scheduler</span>
                     </li>
-                    <li class="nav-item" data-view="users">
+                    <li class="nav-item" data-view="users" data-tooltip="Users">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
                         <span>Users</span>
                     </li>
-                    <li class="nav-item" data-view="reports">
+                    <li class="nav-item" data-view="reports" data-tooltip="Reports">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                         <span>Reports</span>
                     </li>
@@ -136,31 +160,68 @@
                                     <option value="transportation">Transportation</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label>MITRE ATT&CK Tactic</label>
+                                <select id="quick-tactic" class="select-input">
+                                    <option value="">Select Tactic...</option>
+                                    <option value="Reconnaissance">Reconnaissance</option>
+                                    <option value="Resource Development">Resource Development</option>
+                                    <option value="Initial Access">Initial Access</option>
+                                    <option value="Execution">Execution</option>
+                                    <option value="Persistence">Persistence</option>
+                                    <option value="Privilege Escalation">Privilege Escalation</option>
+                                    <option value="Defense Evasion">Defense Evasion</option>
+                                    <option value="Credential Access">Credential Access</option>
+                                    <option value="Discovery">Discovery</option>
+                                    <option value="Lateral Movement">Lateral Movement</option>
+                                    <option value="Collection">Collection</option>
+                                    <option value="Command and Control">Command and Control</option>
+                                    <option value="Exfiltration">Exfiltration</option>
+                                    <option value="Impact">Impact</option>
+                                </select>
+                            </div>
                             <button class="btn btn-primary btn-execute" id="btn-quick-execute">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                 Execute Attack
                             </button>
                         </div>
 
-                        <!-- System Info -->
-                        <div class="card system-card">
-                            <h3>System Information</h3>
-                            <div class="system-info">
+                        <!-- MAGNETO Status -->
+                        <div class="card system-card magneto-status-card">
+                            <h3>MAGNETO Status</h3>
+                            <div class="magneto-status">
+                                <div class="status-row">
+                                    <span class="status-indicator-icon" id="status-admin"></span>
+                                    <span class="status-label">Administrator</span>
+                                </div>
+                                <div class="status-row">
+                                    <span class="status-indicator-icon" id="status-siem"></span>
+                                    <span class="status-label">SIEM Logging</span>
+                                </div>
+                                <div class="status-row">
+                                    <span class="status-indicator-icon" id="status-rotation"></span>
+                                    <span class="status-label">Smart Rotation</span>
+                                </div>
+                                <div class="status-row">
+                                    <span class="status-indicator-icon" id="status-sysmon"></span>
+                                    <span class="status-label">Sysmon</span>
+                                </div>
+                                <div class="status-divider"></div>
                                 <div class="info-row">
-                                    <span class="info-label">Hostname:</span>
-                                    <span class="info-value" id="sys-hostname">-</span>
+                                    <span class="info-label">Techniques:</span>
+                                    <span class="info-value" id="status-techniques">-</span>
                                 </div>
                                 <div class="info-row">
-                                    <span class="info-label">User:</span>
-                                    <span class="info-value" id="sys-user">-</span>
+                                    <span class="info-label">User Pool:</span>
+                                    <span class="info-value" id="status-users">-</span>
                                 </div>
                                 <div class="info-row">
-                                    <span class="info-label">OS:</span>
-                                    <span class="info-value" id="sys-os">-</span>
+                                    <span class="info-label">Schedules:</span>
+                                    <span class="info-value" id="status-schedules">-</span>
                                 </div>
-                                <div class="info-row">
-                                    <span class="info-label">PowerShell:</span>
-                                    <span class="info-value" id="sys-ps">-</span>
+                                <div class="info-row last-exec-row">
+                                    <span class="info-label">Last Run:</span>
+                                    <span class="info-value" id="status-last-exec">Never</span>
                                 </div>
                             </div>
                         </div>
@@ -318,7 +379,7 @@
                                 </div>
                                 <div class="checkbox-group">
                                     <label class="checkbox-label">
-                                        <input type="checkbox" id="exec-cleanup">
+                                        <input type="checkbox" id="exec-cleanup" checked>
                                         <span>Run cleanup after each technique</span>
                                     </label>
                                     <label class="checkbox-label">
@@ -346,25 +407,120 @@
                     <div class="view-header">
                         <h1>Attack Scheduler</h1>
                         <div class="view-actions">
-                            <button class="btn btn-primary" id="btn-new-schedule">+ New Schedule</button>
+                            <button class="btn btn-secondary" id="btn-new-schedule">+ Manual Schedule</button>
                         </div>
                     </div>
 
-                    <div class="scheduler-content">
-                        <div class="card">
-                            <h3>Active Schedules</h3>
-                            <div class="schedule-list" id="schedule-list">
-                                <div class="schedule-empty">No schedules configured</div>
+                    <!-- Smart Rotation Dashboard -->
+                    <div class="smart-rotation-dashboard" id="smart-rotation-dashboard">
+                        <div class="card smart-rotation-header">
+                            <div class="rotation-status-bar">
+                                <div class="rotation-status-left">
+                                    <h3>SMART ROTATION (UEBA Simulation)</h3>
+                                    <span class="rotation-status-badge" id="rotation-status-badge">DISABLED</span>
+                                </div>
+                                <div class="rotation-status-right">
+                                    <button class="btn btn-secondary" id="btn-rotation-config">Configure</button>
+                                    <button class="btn btn-primary" id="btn-rotation-toggle">Enable</button>
+                                </div>
+                            </div>
+                            <div class="rotation-stats" id="rotation-stats">
+                                <div class="rotation-stat">
+                                    <span class="stat-value" id="stat-total-users">0</span>
+                                    <span class="stat-label">Total Users</span>
+                                </div>
+                                <div class="rotation-stat">
+                                    <span class="stat-value" id="stat-baseline-users">0</span>
+                                    <span class="stat-label">In Baseline</span>
+                                </div>
+                                <div class="rotation-stat">
+                                    <span class="stat-value" id="stat-attack-users">0</span>
+                                    <span class="stat-label">In Attack</span>
+                                </div>
+                                <div class="rotation-stat">
+                                    <span class="stat-value" id="stat-cooldown-users">0</span>
+                                    <span class="stat-label">In Cooldown</span>
+                                </div>
+                                <div class="rotation-stat">
+                                    <span class="stat-value" id="stat-pending-users">0</span>
+                                    <span class="stat-label">Pending</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="card">
-                            <h3>Execution History</h3>
-                            <div class="history-list" id="history-list">
-                                <div class="history-empty">No execution history</div>
+                        <!-- User Rotation Cards -->
+                        <div class="rotation-users-section">
+                            <div class="card">
+                                <div class="rotation-section-header">
+                                    <h3>Users in Rotation</h3>
+                                    <button class="btn btn-secondary btn-small" id="btn-add-to-rotation">+ Add Users</button>
+                                </div>
+                                <div class="rotation-users-grid" id="rotation-users-grid">
+                                    <div class="rotation-empty">No users in rotation. Add users from your User Pool to begin.</div>
+                                </div>
                             </div>
                         </div>
+
+                        <!-- Today's Execution Plan -->
+                        <div class="card">
+                            <div class="rotation-section-header">
+                                <h3>Today's Execution Plan</h3>
+                                <button class="btn btn-primary btn-small" id="btn-run-rotation-now">Run Now</button>
+                            </div>
+                            <div class="execution-plan" id="execution-plan">
+                                <div class="plan-empty">Enable Smart Rotation to see today's plan</div>
+                            </div>
+                        </div>
+
+                        <!-- Smart Rotation Execution History -->
+                        <details class="execution-history-section" open>
+                            <summary>Execution History & Statistics</summary>
+                            <div class="card">
+                                <div class="execution-history-stats" id="execution-history-stats">
+                                    <div class="history-stat">
+                                        <span class="stat-value" id="stat-total-executions">0</span>
+                                        <span class="stat-label">Total Executions</span>
+                                    </div>
+                                    <div class="history-stat">
+                                        <span class="stat-value" id="stat-total-ttps-run">0</span>
+                                        <span class="stat-label">Total TTPs Run</span>
+                                    </div>
+                                    <div class="history-stat">
+                                        <span class="stat-value" id="stat-cycles-completed">0</span>
+                                        <span class="stat-label">Cycles Completed</span>
+                                    </div>
+                                    <div class="history-stat">
+                                        <span class="stat-value" id="stat-last-execution">Never</span>
+                                        <span class="stat-label">Last Execution</span>
+                                    </div>
+                                </div>
+                                <h4 style="margin: 1rem 0 0.5rem; color: var(--primary);">Recent Executions</h4>
+                                <div class="execution-history-list" id="execution-history-list">
+                                    <div class="history-empty">No executions recorded yet. Run Smart Rotation to see history.</div>
+                                </div>
+                            </div>
+                        </details>
                     </div>
+
+                    <!-- Manual Schedules (collapsed by default) -->
+                    <details class="manual-schedules-section">
+                        <summary>Manual Schedules</summary>
+                        <div class="scheduler-content">
+                            <div class="card">
+                                <h3>Active Schedules</h3>
+                                <div class="schedule-list" id="schedule-list">
+                                    <div class="schedule-empty">No schedules configured</div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <h3>Execution History</h3>
+                                <div class="history-list" id="history-list">
+                                    <div class="history-empty">No execution history</div>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
                 </div>
 
                 <!-- Users View -->
@@ -373,12 +529,20 @@
                         <h1>User Impersonation Pool</h1>
                         <div class="view-actions">
                             <button class="btn btn-secondary" id="btn-test-users">Test All</button>
+                            <button class="btn btn-secondary" id="btn-browse-users">Browse Users</button>
+                            <button class="btn btn-secondary" id="btn-bulk-import">Import List</button>
                             <button class="btn btn-primary" id="btn-add-user">+ Add User</button>
                         </div>
                     </div>
 
                     <div class="users-content">
                         <div class="card">
+                            <div class="users-info" style="padding: 12px 16px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 16px;">
+                                <p style="margin: 0; color: var(--text-muted); font-size: 13px;">
+                                    Add users to the impersonation pool to execute techniques as different users.
+                                    Use <strong>Browse Users</strong> to select from local or domain accounts, or <strong>Import List</strong> for bulk import.
+                                </p>
+                            </div>
                             <table class="user-table">
                                 <thead>
                                     <tr>
@@ -403,27 +567,111 @@
                 <!-- Reports View -->
                 <div class="view" id="view-reports">
                     <div class="view-header">
-                        <h1>Reports</h1>
+                        <h1>Reports & Analytics</h1>
                         <div class="view-actions">
-                            <button class="btn btn-secondary" id="btn-open-folder">Open Folder</button>
+                            <select class="select-input" id="report-date-range" style="width: 160px;">
+                                <option value="1h">Last 1 Hour</option>
+                                <option value="6h">Last 6 Hours</option>
+                                <option value="24h">Last 24 Hours</option>
+                                <option value="48h">Last 48 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="30d" selected>Last 30 Days</option>
+                                <option value="90d">Last 90 Days</option>
+                                <option value="365d">Last Year</option>
+                                <option value="all">All Time</option>
+                            </select>
+                            <div class="btn-group">
+                                <button class="btn btn-secondary" id="btn-export-csv" title="Export to CSV">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px;margin-right:4px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                                    CSV
+                                </button>
+                                <button class="btn btn-secondary" id="btn-export-json" title="Export to JSON">JSON</button>
+                                <button class="btn btn-primary" id="btn-export-html" title="Export HTML Report">HTML Report</button>
+                            </div>
                         </div>
                     </div>
 
                     <div class="reports-content">
-                        <div class="reports-list-panel">
-                            <div class="card">
-                                <h3>Generated Reports</h3>
-                                <div class="reports-list" id="reports-list">
-                                    <div class="reports-empty">No reports generated</div>
+                        <!-- Summary Statistics -->
+                        <div class="report-stats-grid" id="report-stats">
+                            <div class="stat-card">
+                                <div class="stat-value" id="report-stat-total-executions">0</div>
+                                <div class="stat-label">Total Executions</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="report-stat-total-techniques">0</div>
+                                <div class="stat-label">Techniques Run</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="report-stat-success-rate">0%</div>
+                                <div class="stat-label">Success Rate</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="report-stat-unique-users">0</div>
+                                <div class="stat-label">Unique Users</div>
+                            </div>
+                        </div>
+
+                        <!-- MITRE ATT&CK Coverage Matrix -->
+                        <div class="card report-section">
+                            <div class="card-header">
+                                <h3>MITRE ATT&CK Coverage Matrix</h3>
+                                <span class="coverage-badge" id="matrix-coverage">0/55 techniques</span>
+                            </div>
+                            <div class="attack-matrix-container" id="attack-matrix">
+                                <div class="matrix-loading">Loading matrix data...</div>
+                            </div>
+                        </div>
+
+                        <!-- Two Column Layout -->
+                        <div class="reports-two-col">
+                            <!-- Recent Executions -->
+                            <div class="card report-section">
+                                <h3>Recent Executions</h3>
+                                <div class="executions-table-container">
+                                    <table class="data-table" id="executions-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Type</th>
+                                                <th>User</th>
+                                                <th>Result</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="executions-tbody">
+                                            <tr><td colspan="5" class="empty-cell">No executions recorded</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Tactic Coverage -->
+                            <div class="card report-section">
+                                <h3>Tactic Coverage</h3>
+                                <div class="tactic-bars" id="tactic-bars">
+                                    <div class="tactic-empty">No data available</div>
                                 </div>
                             </div>
                         </div>
-                        <div class="report-preview-panel">
-                            <div class="card">
-                                <h3>Report Preview</h3>
-                                <div class="report-preview" id="report-preview">
-                                    <div class="preview-placeholder">Select a report to preview</div>
-                                </div>
+
+                        <!-- Audit Log -->
+                        <div class="card report-section">
+                            <h3>Audit Log</h3>
+                            <div class="audit-log-container">
+                                <table class="data-table" id="audit-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>Action</th>
+                                            <th>Details</th>
+                                            <th>Initiator</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="audit-tbody">
+                                        <tr><td colspan="4" class="empty-cell">No audit entries</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

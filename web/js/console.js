@@ -207,6 +207,9 @@ class MagnetoConsole {
                     break;
                 case 'completed':
                     this.log(`Execution completed: ${data.successCount}/${data.totalCount} techniques successful`, 'success');
+                    // Refresh dashboard after execution completes
+                    window.magnetoApp?.loadDashboardActivity();
+                    window.magnetoApp?.updateDashboardStats();
                     break;
                 case 'failed':
                     this.log(`Execution failed: ${data.error}`, 'error');
@@ -428,7 +431,9 @@ class MagnetoConsole {
             if (toggleBtn) {
                 const svg = toggleBtn.querySelector('svg');
                 if (svg) {
-                    svg.style.transform = this.panelElement.classList.contains('collapsed') ? 'rotate(180deg)' : '';
+                    // When collapsed: UP arrow (^) to indicate "click to expand"
+                    // When expanded: DOWN arrow (v) to indicate "click to collapse"
+                    svg.style.transform = this.panelElement.classList.contains('collapsed') ? '' : 'rotate(180deg)';
                 }
             }
         }

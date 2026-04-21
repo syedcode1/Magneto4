@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAGNETO V4 - Adding Users Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
+            padding: 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #00ff41;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+        }
+
+        h2 {
+            color: #00ffff;
+            font-size: 1.6em;
+            margin-top: 40px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #00ffff;
+        }
+
+        h3 {
+            color: #00ff41;
+            font-size: 1.2em;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            margin-bottom: 15px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1em;
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: rgba(0, 255, 65, 0.05);
+        }
+
+        th, td {
+            border: 1px solid #00ff41;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(0, 255, 65, 0.15);
+            color: #00ff41;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: rgba(0, 255, 65, 0.08);
+        }
+
+        code {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: rgba(0, 255, 65, 0.1);
+            color: #00ff41;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: #111;
+            border: 1px solid #333;
+            border-left: 3px solid #00ff41;
+            padding: 15px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: #00ff41;
+        }
+
+        .toc {
+            background: rgba(0, 255, 255, 0.05);
+            border: 1px solid #00ffff;
+            padding: 20px 30px;
+            margin: 30px 0;
+            border-radius: 5px;
+        }
+
+        .toc h3 {
+            color: #00ffff;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .toc ol {
+            margin-left: 20px;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .toc a {
+            color: #00ff41;
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        ol, ul {
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        .note {
+            background: rgba(0, 255, 255, 0.1);
+            border-left: 4px solid #00ffff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .warning {
+            background: rgba(255, 200, 0, 0.1);
+            border-left: 4px solid #ffc800;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .warning strong {
+            color: #ffc800;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+
+        .badge-green {
+            background: rgba(0, 255, 65, 0.2);
+            color: #00ff41;
+        }
+
+        .badge-red {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+        }
+
+        .badge-gray {
+            background: rgba(150, 150, 150, 0.2);
+            color: #999;
+        }
+
+        .badge-blue {
+            background: rgba(0, 150, 255, 0.2);
+            color: #00aaff;
+        }
+
+        .method-box {
+            background: rgba(0, 255, 65, 0.03);
+            border: 1px solid #333;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .method-box h3 {
+            margin-top: 0;
+        }
+
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .steps li {
+            counter-increment: step;
+            padding-left: 40px;
+            position: relative;
+            margin: 15px 0;
+        }
+
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 25px;
+            height: 25px;
+            background: #00ff41;
+            color: #000;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 25px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #333;
+            margin: 40px 0;
+        }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+            color: #666;
+            font-size: 0.9em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>MAGNETO V4</h1>
+    <p class="subtitle">Adding Users for Attack Simulations</p>
+
+    <p>MAGNETO allows you to run attack techniques as different users (impersonation). This guide covers all methods for adding users to the impersonation pool.</p>
+
+    <div class="toc">
+        <h3>Table of Contents</h3>
+        <ol>
+            <li><a href="#user-types">Understanding User Types</a></li>
+            <li><a href="#method1">Method 1: Add Single User (UI)</a></li>
+            <li><a href="#method2">Method 2: Browse &amp; Add Users</a></li>
+            <li><a href="#method3">Method 3: Bulk Import (Text)</a></li>
+            <li><a href="#method4">Method 4: CSV File Import</a></li>
+            <li><a href="#method5">Method 5: Create Test Users (Scripts)</a></li>
+            <li><a href="#testing">Testing User Credentials</a></li>
+            <li><a href="#security">Password Security</a></li>
+        </ol>
+    </div>
+
+    <hr>
+
+    <h2 id="user-types">Understanding User Types</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Password Required</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Current User</strong></td>
+                <td>No</td>
+                <td>Your logged-in Windows account</td>
+            </tr>
+            <tr>
+                <td><strong>Session User</strong></td>
+                <td>No</td>
+                <td>Other users with active sessions on the machine</td>
+            </tr>
+            <tr>
+                <td><strong>Local User</strong></td>
+                <td>Yes</td>
+                <td>Local Windows accounts</td>
+            </tr>
+            <tr>
+                <td><strong>Domain User</strong></td>
+                <td>Yes</td>
+                <td>Active Directory accounts</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="note">
+        <strong>Note:</strong> Session-based users (Current User, Session User) use token-based authentication and don't require passwords.
+    </div>
+
+    <hr>
+
+    <h2 id="method1">Method 1: Add Single User (UI)</h2>
+
+    <div class="method-box">
+        <ol class="steps">
+            <li>Navigate to <strong>Users</strong> in the sidebar</li>
+            <li>Click the <strong>Add User</strong> button</li>
+            <li>Fill in the form:
+                <ul>
+                    <li><strong>Username:</strong> Account name (e.g., <code>jsmith</code>)</li>
+                    <li><strong>Domain:</strong> Domain name or <code>.</code> for local accounts</li>
+                    <li><strong>Password:</strong> Account password</li>
+                    <li><strong>Type:</strong> local, domain, or service</li>
+                    <li><strong>Notes:</strong> Optional description</li>
+                </ul>
+            </li>
+            <li>Click <strong>Save</strong></li>
+        </ol>
+    </div>
+
+    <hr>
+
+    <h2 id="method2">Method 2: Browse &amp; Add Users</h2>
+
+    <p>The Browse Users feature discovers users from your system automatically.</p>
+
+    <ol class="steps">
+        <li>Navigate to <strong>Users</strong> in the sidebar</li>
+        <li>Click the <strong>Browse Users</strong> button</li>
+        <li>Select a tab (see options below)</li>
+        <li>Check the users you want to add</li>
+        <li>Enter password (if required)</li>
+        <li>Click <strong>Add Selected Users</strong></li>
+    </ol>
+
+    <h3>Active Sessions Tab</h3>
+    <ul>
+        <li>Shows your current user and other logged-in users</li>
+        <li><strong>No password required</strong> - uses session tokens</li>
+        <li>Current user is pre-selected</li>
+    </ul>
+
+    <h3>Local Users Tab</h3>
+    <ul>
+        <li>Shows all local Windows accounts</li>
+        <li>Enter a shared password for selected users</li>
+        <li>Disabled accounts are marked</li>
+    </ul>
+
+    <h3>Domain Users Tab</h3>
+    <ul>
+        <li>Only available on domain-joined machines</li>
+        <li>Search Active Directory users</li>
+        <li>Enter a shared password for selected users</li>
+        <li>Use the search box to filter by name</li>
+    </ul>
+
+    <hr>
+
+    <h2 id="method3">Method 3: Bulk Import (Text)</h2>
+
+    <p>Import multiple users at once using text format.</p>
+
+    <ol class="steps">
+        <li>Navigate to <strong>Users</strong> in the sidebar</li>
+        <li>Click the <strong>Bulk Import</strong> button</li>
+        <li>Enter users in the text area using one of the formats below</li>
+        <li>Enter a <strong>default password</strong> (used for users without specified passwords)</li>
+        <li>Click <strong>Import Users</strong></li>
+    </ol>
+
+    <h3>Simple Format (one per line)</h3>
+    <pre><code>username1
+username2
+username3</code></pre>
+
+    <h3>Domain\User Format</h3>
+    <pre><code>DOMAIN\user1
+DOMAIN\user2
+CORP\admin1
+.\localuser</code></pre>
+
+    <h3>With Password (comma-separated)</h3>
+    <pre><code>user1,Password123!
+DOMAIN\user2,SecurePass!
+.\localadmin,LocalPass!</code></pre>
+
+    <hr>
+
+    <h2 id="method4">Method 4: CSV File Import</h2>
+
+    <p>Import users from a CSV file for large deployments.</p>
+
+    <ol class="steps">
+        <li>Navigate to <strong>Users</strong> in the sidebar</li>
+        <li>Click the <strong>Bulk Import</strong> button</li>
+        <li>Click the <strong>Choose CSV File</strong> button</li>
+        <li>Select a CSV file with the format below</li>
+        <li>Passwords are auto-hidden after import for security</li>
+        <li>Click <strong>Import Users</strong></li>
+    </ol>
+
+    <h3>CSV Format</h3>
+    <pre><code>username,domain,password,type,notes
+jsmith,CORP,Password123!,domain,IT Admin
+localadmin,.,LocalPass!,local,Local administrator
+svc_backup,CORP,SvcPass!,service,Backup service account</code></pre>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Column</th>
+                <th>Required</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>username</code></td>
+                <td>Yes</td>
+                <td>Account name</td>
+            </tr>
+            <tr>
+                <td><code>domain</code></td>
+                <td>No</td>
+                <td>Domain name (defaults to <code>.</code> for local)</td>
+            </tr>
+            <tr>
+                <td><code>password</code></td>
+                <td>No</td>
+                <td>Account password</td>
+            </tr>
+            <tr>
+                <td><code>type</code></td>
+                <td>No</td>
+                <td>User type: local, domain, or service</td>
+            </tr>
+            <tr>
+                <td><code>notes</code></td>
+                <td>No</td>
+                <td>Description</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h2 id="method5">Method 5: Create Test Users (Scripts)</h2>
+
+    <p>MAGNETO includes scripts to create test users for simulation environments.</p>
+
+    <h3>Local Users (Standalone Machines)</h3>
+
+    <pre><code>cd C:\Path\To\MAGNETO_V4\scripts
+.\Create-MagnetoUsers.ps1</code></pre>
+
+    <p>This creates:</p>
+    <ul>
+        <li>30 local users: <code>MagnetoUser01</code> through <code>MagnetoUser30</code></li>
+        <li>Passwords: <code>Magneto2024!01</code> through <code>Magneto2024!30</code></li>
+        <li>Added to local Administrators group</li>
+        <li>Exports <code>MagnetoUsers.csv</code> for import</li>
+    </ul>
+
+    <h3>Active Directory Users (Domain Environments)</h3>
+
+    <pre><code>cd C:\Path\To\MAGNETO_V4\scripts
+.\Create-MagnetoADUsers.ps1 -Password "YourSecurePassword!"</code></pre>
+
+    <p>This creates:</p>
+    <ul>
+        <li>30 AD users with realistic names (e.g., <code>Judy.M.Smith</code>)</li>
+        <li>Middle initial "M" identifies MAGNETO accounts</li>
+        <li>All users share the specified password</li>
+        <li>Exports <code>MagnetoADUsers.csv</code> for import</li>
+    </ul>
+
+    <h3>Optional Parameters</h3>
+    <pre><code># Specify target OU
+.\Create-MagnetoADUsers.ps1 -Password "Pass!" -OUPath "OU=TestUsers,DC=corp,DC=com"
+
+# Add users to a group
+.\Create-MagnetoADUsers.ps1 -Password "Pass!" -AddToGroup "TestGroup"
+
+# Preview without creating
+.\Create-MagnetoADUsers.ps1 -Password "Pass!" -WhatIf</code></pre>
+
+    <h3>Managing MAGNETO AD Users</h3>
+    <pre><code># Find all MAGNETO users
+Get-ADUser -Filter "Initials -eq 'M'" | Select Name, SamAccountName
+
+# Delete all MAGNETO users
+Get-ADUser -Filter "Initials -eq 'M'" | Remove-ADUser -Confirm:$false</code></pre>
+
+    <hr>
+
+    <h2 id="testing">Testing User Credentials</h2>
+
+    <p>Always test credentials before running attack simulations.</p>
+
+    <h3>Test Single User</h3>
+    <ol>
+        <li>In the Users list, click the <strong>Test</strong> button next to a user</li>
+        <li>Status updates to <strong>Valid</strong> or <strong>Invalid</strong></li>
+    </ol>
+
+    <h3>Test All Users</h3>
+    <ol>
+        <li>Click the <strong>Test All</strong> button in the Users view</li>
+        <li>All users with passwords are tested</li>
+        <li>Session-based users are skipped (no password to test)</li>
+    </ol>
+
+    <h3>Status Indicators</h3>
+    <table>
+        <tbody>
+            <tr>
+                <td><span class="badge badge-green">Valid</span></td>
+                <td>Credentials verified successfully</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-red">Invalid</span></td>
+                <td>Authentication failed</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-gray">Untested</span></td>
+                <td>Not yet tested</td>
+            </tr>
+            <tr>
+                <td><span class="badge badge-blue">Session</span></td>
+                <td>Token-based, no password needed</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h2 id="security">Password Security</h2>
+
+    <p>MAGNETO protects stored passwords using Windows DPAPI encryption.</p>
+
+    <h3>How It Works</h3>
+    <ul>
+        <li>Passwords are encrypted using the <strong>CurrentUser</strong> scope</li>
+        <li>Encrypted at rest in <code>data/users.json</code></li>
+        <li>Decrypted only when needed for execution</li>
+        <li>Session-based users store <code>__SESSION_TOKEN__</code> instead</li>
+    </ul>
+
+    <div class="warning">
+        <strong>Important:</strong> Passwords can only be decrypted by the same Windows user that encrypted them. If you run MAGNETO as a different user, passwords won't decrypt. Always use the same Windows account for MAGNETO operations.
+    </div>
+
+    <h3>Security Best Practices</h3>
+    <ul>
+        <li>Use dedicated test accounts for simulations</li>
+        <li>Don't use production credentials</li>
+        <li>Regularly rotate test account passwords</li>
+        <li>Delete test users after exercises</li>
+    </ul>
+
+    <hr>
+
+    <h2>Quick Reference</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Method</th>
+                <th>Best For</th>
+                <th>Password Required</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Add Single User</td>
+                <td>One-off additions</td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>Browse Sessions</td>
+                <td>Quick impersonation</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>Browse Local/Domain</td>
+                <td>Discovering existing users</td>
+                <td>Yes (shared)</td>
+            </tr>
+            <tr>
+                <td>Bulk Import (Text)</td>
+                <td>Multiple users, simple format</td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>CSV Import</td>
+                <td>Large deployments</td>
+                <td>Yes</td>
+            </tr>
+            <tr>
+                <td>Create Scripts</td>
+                <td>Fresh test environments</td>
+                <td>Generated</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <hr>
+
+    <h2>Troubleshooting</h2>
+
+    <h3>"Access Denied" during execution</h3>
+    <ul>
+        <li>User credentials may be invalid</li>
+        <li>Run <strong>Test All</strong> to verify credentials</li>
+        <li>Ensure user has logon rights</li>
+    </ul>
+
+    <h3>Domain users not appearing</h3>
+    <ul>
+        <li>Computer must be domain-joined</li>
+        <li>You need permission to query AD</li>
+        <li>Try searching by partial name</li>
+    </ul>
+
+    <h3>Passwords not working after restart</h3>
+    <ul>
+        <li>DPAPI encryption is user-specific</li>
+        <li>Run MAGNETO as the same Windows user</li>
+        <li>Re-enter passwords if needed</li>
+    </ul>
+
+    <div class="footer">
+        <p>MAGNETO V4 - Living Off The Land Attack Simulation Framework</p>
+        <p>For authorized security testing and red team exercises only.</p>
+    </div>
+</body>
+</html>

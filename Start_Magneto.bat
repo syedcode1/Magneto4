@@ -97,8 +97,14 @@ echo [+] Web UI files found.
 :: ============================================================================
 :: Configuration
 :: ============================================================================
-set "PORT=8080"
 set "HOST=localhost"
+
+:: Check for custom port argument (e.g., Start_Magneto.bat 8081)
+if "%~1"=="" (
+    set "PORT=8080"
+) else (
+    set "PORT=%~1"
+)
 
 echo.
 echo ===============================================================================
@@ -108,15 +114,27 @@ echo   - Port: %PORT%
 echo   - URL:  http://%HOST%:%PORT%/
 echo ===============================================================================
 echo.
+echo   TIP: To use a different port, run: Start_Magneto.bat 8081
+echo.
 
 :: ============================================================================
-:: Launch MAGNETO Web Server
+:: Launch MAGNETO Web Server (with restart loop)
 :: ============================================================================
+:StartServer
 echo [+] Starting MAGNETO V4 Web Server...
 echo [*] Press Ctrl+C to stop the server.
 echo.
 
 powershell -ExecutionPolicy Bypass -File "%WEBSERVER%" -Port %PORT%
+
+:: Check if restart was requested (exit code 1001)
+if %ERRORLEVEL% equ 1001 (
+    echo.
+    echo [*] Restarting MAGNETO V4...
+    echo.
+    timeout /t 1 /nobreak >nul
+    goto StartServer
+)
 
 echo.
 echo [!] MAGNETO V4 has stopped.
