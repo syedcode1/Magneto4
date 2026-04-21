@@ -72,6 +72,7 @@ function Write-Log {
         "Debug"   { "Magenta" }
         default   { "Cyan" }
     }
+    # INTENTIONAL-SWALLOW: No console attached in service mode
     try { Write-Host $logLine -ForegroundColor $color } catch {}
 
     # Also write to log file (critical for scheduled task debugging)
@@ -114,16 +115,20 @@ function Invoke-RunspaceReaper {
         $entry = $Registry[$key]
         if (-not $entry) { continue }
         $completed = $false
+        # INTENTIONAL-SWALLOW: Reaper tolerates partial/malformed registry entries
         try { $completed = $entry.AsyncResult -and $entry.AsyncResult.IsCompleted } catch { }
         if (-not $completed) { continue }
 
         try {
             if ($entry.PowerShell) {
-                try { if ($entry.AsyncResult) { $null = $entry.PowerShell.EndInvoke($entry.AsyncResult) } } catch { }
+                try { if ($entry.AsyncResult) { $null = $entry.PowerShell.EndInvoke($entry.AsyncResult) } } catch { Write-Log "Reaper: EndInvoke failed for ${Label}: $($_.Exception.Message)" -Level Warning }
+                # INTENTIONAL-SWALLOW: Dispose is idempotent; failure is no-op
                 try { $entry.PowerShell.Dispose() } catch { }
             }
             if ($entry.Runspace) {
+                # INTENTIONAL-SWALLOW: Runspace close is idempotent
                 try { $entry.Runspace.Close() } catch { }
+                # INTENTIONAL-SWALLOW: Runspace dispose is idempotent
                 try { $entry.Runspace.Dispose() } catch { }
             }
         } catch {
@@ -2508,7 +2513,8 @@ catch {
             $scheduler = New-Object -ComObject Schedule.Service
             $scheduler.Connect()
             $rootFolder = $scheduler.GetFolder("\")
-            try { $rootFolder.CreateFolder("MAGNETO") } catch {}
+            # INTENTIONAL-SWALLOW: MAGNETO task folder may already exist
+            try { $rootFolder.CreateFolder("MAGNETO") } catch [System.Runtime.InteropServices.COMException] { }
         }
 
         # Build short command that calls the launcher script
@@ -3108,7 +3114,9 @@ function Handle-APIRequest {
                                 total = $lastExec.summary.total
                             }
                         }
-                    } catch {}
+                    }
+                    # INTENTIONAL-SWALLOW: Status-endpoint history probe is best-effort
+                    catch {}
                 }
 
                 $responseData = @{
@@ -3543,7 +3551,9 @@ function Handle-APIRequest {
                                         if ($client.State -eq [System.Net.WebSockets.WebSocketState]::Open) {
                                             $client.SendAsync($segment, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, [System.Threading.CancellationToken]::None).Wait()
                                         }
-                                    } catch { }
+                                    }
+                                    # INTENTIONAL-SWALLOW: Per-client WebSocket send failure tolerated -- reaper removes dead sockets
+                                    catch { }
                                 }
                             }
 
@@ -4820,8 +4830,8 @@ for ($retry = 1; $retry -le $maxRetries; $retry++) {
     try {
         # Clean up any previous listener instance
         if ($listener) {
-            try { $listener.Close() } catch { }
-            try { $listener.Dispose() } catch { }
+            try { $listener.Close() } catch { Write-Log "Listener.Close retry: $($_.Exception.Message)" -Level Warning }
+            try { $listener.Dispose() } catch { Write-Log "Listener.Dispose retry: $($_.Exception.Message)" -Level Warning }
             $listener = $null
         }
 
@@ -4838,8 +4848,8 @@ for ($retry = 1; $retry -le $maxRetries; $retry++) {
         # Try localhost only as fallback
         try {
             if ($listener) {
-                try { $listener.Close() } catch { }
-                try { $listener.Dispose() } catch { }
+                try { $listener.Close() } catch { Write-Log "Listener.Close final-attempt failed: $($_.Exception.Message)" -Level Error; throw }
+                try { $listener.Dispose() } catch { Write-Log "Listener.Dispose final-attempt failed: $($_.Exception.Message)" -Level Error; throw }
             }
             $listener = [System.Net.HttpListener]::new()
             $listener.Prefixes.Add("http://localhost:$Port/")
@@ -4906,7 +4916,9 @@ $cleanupScript = {
         try {
             $listener.Stop()
             $listener.Close()
-        } catch { }
+        }
+        # INTENTIONAL-SWALLOW: Process is exiting; cleanup is best-effort
+        catch { }
     }
 }
 
@@ -5004,7 +5016,9 @@ while ($script:ServerRunning) {
             try {
                 $null = Invoke-RunspaceReaper -Registry $script:AsyncExecutions -Label 'async execution'
                 $null = Invoke-RunspaceReaper -Registry $script:WebSocketRunspaces -Label 'websocket'
-            } catch { }
+            }
+            # INTENTIONAL-SWALLOW: Server restart; final reap is best-effort
+            catch { }
 
             # Properly close the listener to release the port
             try {
@@ -5047,7 +5061,9 @@ while ($script:ServerRunning) {
     try {
         $null = Invoke-RunspaceReaper -Registry $script:AsyncExecutions -Label 'async execution'
         $null = Invoke-RunspaceReaper -Registry $script:WebSocketRunspaces -Label 'websocket'
-    } catch { }
+    }
+    # INTENTIONAL-SWALLOW: Process cleanup; reap is best-effort
+    catch { }
 
     # Safely stop and close the listener to release the port
     if ($listener -and $listenerStarted -and -not $script:CleanupDone) {
