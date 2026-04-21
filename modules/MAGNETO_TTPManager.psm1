@@ -10,6 +10,9 @@
     Author: MAGNETO Development Team
 #>
 
+# Load shared runspace helpers (single source of truth for Read-JsonFile, Write-JsonFile, ...)
+. (Join-Path $PSScriptRoot 'MAGNETO_RunspaceHelpers.ps1')
+
 # Module variables
 $script:TechniquesFile = $null
 $script:CampaignsFile = $null
@@ -234,8 +237,7 @@ function Save-Techniques {
         techniques = $script:Techniques
     }
 
-    $json = $data | ConvertTo-Json -Depth 10
-    Set-Content -Path $script:TechniquesFile -Value $json -Encoding UTF8
+    Write-JsonFile -Path $script:TechniquesFile -Data $data -Depth 10 | Out-Null
 }
 
 function Get-TechniquesByTactic {
