@@ -1,0 +1,25 @@
+{
+  "id": "fixture-exec-001",
+  "name": "Identity Test Execution",
+  "startTime": "2026-04-01T00:00:00",
+  "endTime": "2026-04-01T00:00:05",
+  "duration": 5,
+  "executedAs": "FIXTURE-USER",
+  "impersonated": false,
+  "totalCount": 1,
+  "successCount": 1,
+  "failedCount": 0,
+  "skippedCount": 0,
+  "status": "completed",
+  "results": [
+    {
+      "techniqueId": "T1082",
+      "techniqueName": "System Information Discovery",
+      "tactic": "Discovery",
+      "status": "success",
+      "stdout": "fixture-stdout",
+      "stderr": "",
+      "duration": 5
+    }
+  ]
+}
