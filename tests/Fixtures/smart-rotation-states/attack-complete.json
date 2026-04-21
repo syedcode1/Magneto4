@@ -1,0 +1,8 @@
+{
+    "description": "Attack phase complete: 24 days elapsed, 42 baseline + 20 attack TTPs executed — user should transition to cooldown.",
+    "Phase": "attack",
+    "PhaseStartDaysAgo": 24,
+    "TTPsExecuted": 42,
+    "AttackTTPsExecuted": 20,
+    "CycleCount": 0
+}

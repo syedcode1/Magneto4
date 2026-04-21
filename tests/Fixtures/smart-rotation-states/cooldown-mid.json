@@ -1,0 +1,8 @@
+{
+    "description": "Mid-cooldown: user is 3 days into the 6-day cooldown window, full cycle already counted in completedCycles.",
+    "Phase": "cooldown",
+    "PhaseStartDaysAgo": 27,
+    "TTPsExecuted": 42,
+    "AttackTTPsExecuted": 20,
+    "CycleCount": 0
+}

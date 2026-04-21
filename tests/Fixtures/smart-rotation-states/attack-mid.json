@@ -1,0 +1,8 @@
+{
+    "description": "Mid-attack: user completed baseline, 5 days into attack phase, 10 attack TTPs of 20 required.",
+    "Phase": "attack",
+    "PhaseStartDaysAgo": 19,
+    "TTPsExecuted": 42,
+    "AttackTTPsExecuted": 10,
+    "CycleCount": 0
+}

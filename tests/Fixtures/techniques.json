@@ -1,0 +1,34 @@
+{
+    "techniques": [
+        {
+            "id": "T1082",
+            "name": "System Information Discovery",
+            "tactic": "Discovery",
+            "source": "fixture",
+            "requiresAdmin": false,
+            "requiresDomain": false,
+            "command": "hostname",
+            "cleanupCommand": "",
+            "enabled": true,
+            "description": {
+                "whyTrack": "Baseline reconnaissance technique. Minimal fixture for test harness.",
+                "realWorldUsage": "Universal discovery technique. Fixture copy; command trimmed to a safe no-op."
+            }
+        },
+        {
+            "id": "T1059.001",
+            "name": "Command and Scripting Interpreter: PowerShell",
+            "tactic": "Execution",
+            "source": "fixture",
+            "requiresAdmin": false,
+            "requiresDomain": false,
+            "command": "powershell.exe -Command \"Get-Process | Select-Object -First 1\"",
+            "cleanupCommand": "",
+            "enabled": true,
+            "description": {
+                "whyTrack": "Attack-phase fixture representing PowerShell execution.",
+                "realWorldUsage": "Fixture copy; output limited to avoid noise."
+            }
+        }
+    ]
+}

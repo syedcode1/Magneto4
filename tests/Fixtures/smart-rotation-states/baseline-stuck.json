@@ -1,0 +1,8 @@
+{
+    "description": "Stuck-in-baseline regression: 21 calendar days elapsed but only 11 TTPs — triggers waitingForTTPs=$true; the bug the plan calls out.",
+    "Phase": "baseline",
+    "PhaseStartDaysAgo": 21,
+    "TTPsExecuted": 11,
+    "AttackTTPsExecuted": 0,
+    "CycleCount": 0
+}

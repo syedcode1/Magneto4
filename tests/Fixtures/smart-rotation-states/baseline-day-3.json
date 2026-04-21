@@ -1,0 +1,8 @@
+{
+    "description": "Mid-baseline fixture: 3 days into a fresh cycle, 9 TTPs executed out of 42 required.",
+    "Phase": "baseline",
+    "PhaseStartDaysAgo": 3,
+    "TTPsExecuted": 9,
+    "AttackTTPsExecuted": 0,
+    "CycleCount": 0
+}

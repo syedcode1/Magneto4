@@ -1,0 +1,18 @@
+{
+    "config": {
+        "baselineDays": 14,
+        "attackDays": 10,
+        "cooldownDays": 6,
+        "minBaselineTTPs": 42,
+        "minAttackTTPs": 20,
+        "subsequentDaysCount": 3,
+        "day1BurstCount": 10,
+        "dailyExecutionTime": "09:00",
+        "pauseOnWeekends": false,
+        "randomizeSelection": true,
+        "maxConcurrentUsers": 3
+    },
+    "users": [],
+    "lastRun": null,
+    "enabled": true
+}

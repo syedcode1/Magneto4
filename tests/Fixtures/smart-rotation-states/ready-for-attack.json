@@ -1,0 +1,8 @@
+{
+    "description": "Both thresholds satisfied: 14 calendar days and 42 baseline TTPs — user should transition to attack phase.",
+    "Phase": "baseline",
+    "PhaseStartDaysAgo": 14,
+    "TTPsExecuted": 42,
+    "AttackTTPsExecuted": 0,
+    "CycleCount": 0
+}
