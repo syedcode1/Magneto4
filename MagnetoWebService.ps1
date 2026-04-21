@@ -1835,35 +1835,40 @@ function Get-ClassifiedTTPs {
     return $result
 }
 
-function Get-UserRotationPhase {
-    param([object]$UserRotation)
-
-    $config = (Get-SmartRotation).config
-    $today = (Get-Date).Date
+# Pure phase-decision function: no clock read, no Get-SmartRotation read.
+# All inputs explicit so Phase 1 tests can sweep edge cases deterministically
+# (see tests/SmartRotation/*.Tests.ps1 and .planning/phase-1/RESEARCH.md §4.2).
+# Behavior is byte-for-byte identical to the pre-T1.10 Get-UserRotationPhase body.
+function Get-UserRotationPhaseDecision {
+    param(
+        [object]$UserState,
+        [object]$Config,
+        [datetime]$Now
+    )
 
     # Check enrollment date first - if user isn't enrolled yet, they're pending
-    if ($UserRotation.enrollmentDate) {
+    if ($UserState.enrollmentDate) {
         try {
-            $enrollDate = [datetime]::ParseExact($UserRotation.enrollmentDate, "yyyy-MM-dd", $null)
+            $enrollDate = [datetime]::ParseExact($UserState.enrollmentDate, "yyyy-MM-dd", $null)
         }
         catch {
             try {
-                $enrollDate = [datetime]::Parse($UserRotation.enrollmentDate)
+                $enrollDate = [datetime]::Parse($UserState.enrollmentDate)
             }
             catch {
-                $enrollDate = $today
+                $enrollDate = $Now
             }
         }
 
-        if ($enrollDate -gt $today) {
+        if ($enrollDate -gt $Now) {
             # User not yet enrolled - return pending status
-            $daysUntilEnrollment = ($enrollDate - $today).Days
+            $daysUntilEnrollment = ($enrollDate - $Now).Days
             return @{
                 phase = "pending"
                 dayInPhase = 0
                 totalPhaseDays = 0
                 daysUntilEnrollment = $daysUntilEnrollment
-                enrollmentDate = $UserRotation.enrollmentDate
+                enrollmentDate = $UserState.enrollmentDate
                 currentCycle = 0
             }
         }
@@ -1871,58 +1876,58 @@ function Get-UserRotationPhase {
 
     # Parse start date with error handling
     $startDate = $null
-    if ($UserRotation.startDate) {
+    if ($UserState.startDate) {
         try {
-            $startDate = [datetime]::ParseExact($UserRotation.startDate, "yyyy-MM-dd", $null)
+            $startDate = [datetime]::ParseExact($UserState.startDate, "yyyy-MM-dd", $null)
         }
         catch {
             try {
-                $startDate = [datetime]::Parse($UserRotation.startDate)
+                $startDate = [datetime]::Parse($UserState.startDate)
             }
             catch {
-                $startDate = (Get-Date).Date
+                $startDate = $Now
             }
         }
     }
     else {
-        $startDate = (Get-Date).Date
+        $startDate = $Now
     }
 
-    $daysSinceStart = ($today - $startDate).Days
+    $daysSinceStart = ($Now - $startDate).Days
     if ($daysSinceStart -lt 0) { $daysSinceStart = 0 }
 
-    $baselineDays = $config.baselineDays
-    $attackDays = $config.attackDays
-    $cooldownDays = $config.cooldownDays
+    $baselineDays = $Config.baselineDays
+    $attackDays = $Config.attackDays
+    $cooldownDays = $Config.cooldownDays
     $cycleLength = $baselineDays + $attackDays + $cooldownDays
 
     # Execution-based progression: Calculate minimum baseline TTPs required
     # Default: baselineDays * subsequentDaysCount (e.g., 14 * 3 = 42)
-    $ttpsPerDay = if ($config.subsequentDaysCount) { $config.subsequentDaysCount } else { 3 }
-    $minBaselineTTPs = if ($config.minBaselineTTPs) {
-        $config.minBaselineTTPs
+    $ttpsPerDay = if ($Config.subsequentDaysCount) { $Config.subsequentDaysCount } else { 3 }
+    $minBaselineTTPs = if ($Config.minBaselineTTPs) {
+        $Config.minBaselineTTPs
     } else {
         $baselineDays * $ttpsPerDay
     }
 
     # Count actual baseline TTPs run by this user
     $baselineTTPsRun = 0
-    if ($UserRotation.baselineTTPsRun) {
-        $baselineTTPsRun = @($UserRotation.baselineTTPsRun).Count
+    if ($UserState.baselineTTPsRun) {
+        $baselineTTPsRun = @($UserState.baselineTTPsRun).Count
     }
 
     # Count actual attack TTPs run by this user (for cycle completion check)
     $attackTTPsRun = 0
-    if ($UserRotation.attackTTPsRun) {
-        $attackTTPsRun = @($UserRotation.attackTTPsRun).Count
+    if ($UserState.attackTTPsRun) {
+        $attackTTPsRun = @($UserState.attackTTPsRun).Count
     }
 
     # Calculate minimum attack TTPs required for cycle completion
-    $minAttackTTPs = if ($config.minAttackTTPs) { $config.minAttackTTPs } else { 20 }
+    $minAttackTTPs = if ($Config.minAttackTTPs) { $Config.minAttackTTPs } else { 20 }
 
     # Calculate which cycle we're in based on COMPLETED cycles
     # A cycle is complete only when user has run both baseline AND attack TTPs
-    $completedCycles = if ($UserRotation.completedCycles) { $UserRotation.completedCycles } else { 0 }
+    $completedCycles = if ($UserState.completedCycles) { $UserState.completedCycles } else { 0 }
     $currentCycle = $completedCycles + 1
 
     # Calendar-based day calculation (for display purposes)
@@ -2008,6 +2013,16 @@ function Get-UserRotationPhase {
             }
         }
     }
+}
+
+# Thin adapter: reads SmartRotation config + today's date, delegates to the
+# pure decision function. Public signature and return shape unchanged so the
+# four existing callers (lines ~2181, 2198, 2298, 4283) need no modification.
+function Get-UserRotationPhase {
+    param([object]$UserRotation)
+    $config = (Get-SmartRotation).config
+    $today  = (Get-Date).Date
+    Get-UserRotationPhaseDecision -UserState $UserRotation -Config $config -Now $today
 }
 
 function Get-UserCurrentCampaign {
