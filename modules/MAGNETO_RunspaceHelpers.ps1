@@ -260,7 +260,10 @@ function New-MagnetoRunspace {
     }
 
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-    $iss.StartupScripts.Add($HelpersPath)
+    # PS 5.1 quirk: InitialSessionState.StartupScripts is a HashSet<string>, and
+    # HashSet<T>.Add() returns bool. Suppress to stop it leaking into the output
+    # stream - otherwise the factory returns @($true, $runspace) instead of $runspace.
+    $null = $iss.StartupScripts.Add($HelpersPath)
 
     $runspace = [runspacefactory]::CreateRunspace($iss)
     $runspace.Open()
