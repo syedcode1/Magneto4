@@ -1,0 +1,19 @@
+# Runtime state (generated on first run; do not distribute)
+data/audit-log.json
+data/execution-history.json
+data/schedules.json
+data/smart-rotation.json
+data/users.json
+
+# Logs
+logs/
+magneto.log
+*.log
+
+# Backup archives / local builds
+*.zip
+*.zip.old
+
+# Tooling / local environment
+.claude/
+.planning/
