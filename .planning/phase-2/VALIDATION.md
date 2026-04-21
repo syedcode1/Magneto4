@@ -1,8 +1,8 @@
 ---
 phase: 2
 slug: shared-runspace-helpers-silent-catch-audit
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-04-21
 ---
@@ -96,4 +96,4 @@ Phase 5 smoke harness will automate these; tracking here as manual-only for Phas
 - [ ] `nyquist_compliant: true` set in this file's frontmatter after `gsd-plan-checker` verifies the plan passes Dimension 8 (every task has either automated verification or documented manual verification).
 - [ ] `wave_0_complete: true` set after all Wave 0 file stubs are in place at the end of Wave 0 tasks.
 
-**Approval:** pending (draft — awaiting planner + checker wiring)
+**Approval:** approved 2026-04-21 (gsd-plan-checker 10/10 dimensions pass; Dimension 8 Nyquist verified — every task has automated verify or documented manual check; Wave 0 list matches PLAN.md deliverables character-for-character)
