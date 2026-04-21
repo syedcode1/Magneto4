@@ -3503,14 +3503,16 @@ function Handle-APIRequest {
                             delayMs = $delay
                         }
 
-                        $runspace = [runspacefactory]::CreateRunspace()
-                        $runspace.Open()
-
-                        # Pass WebSocket clients to the runspace for console output
-                        $runspace.SessionStateProxy.SetVariable('WebSocketClients', $script:WebSocketClients)
-                        # Reset and share the cross-runspace stop signal
+                        # Reset cross-runspace stop signal before injecting it as a SharedVariable
                         $script:CurrentExecutionStop.stop = $false
-                        $runspace.SessionStateProxy.SetVariable('CurrentExecutionStop', $script:CurrentExecutionStop)
+
+                        # Use the factory so the runspace gets the five shared helpers
+                        # (Read-JsonFile, Write-JsonFile, Save-ExecutionRecord, Write-AuditLog,
+                        # Write-RunspaceError) loaded via InitialSessionState.StartupScripts.
+                        $runspace = New-MagnetoRunspace -HelpersPath $script:RunspaceHelpersPath -SharedVariables @{
+                            WebSocketClients     = $script:WebSocketClients
+                            CurrentExecutionStop = $script:CurrentExecutionStop
+                        }
 
                         $powershell = [powershell]::Create()
                         $powershell.Runspace = $runspace
@@ -3542,157 +3544,6 @@ function Handle-APIRequest {
                                             $client.SendAsync($segment, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, [System.Threading.CancellationToken]::None).Wait()
                                         }
                                     } catch { }
-                                }
-                            }
-
-                            # Diagnostic logger — writes runspace persistence errors that catch{} would otherwise swallow
-                            function Write-RunspaceError {
-                                param(
-                                    [Parameter(Mandatory)][string]$Function,
-                                    [Parameter(Mandatory)][string]$Path,
-                                    [Parameter(Mandatory)]$ErrorRecord
-                                )
-                                try {
-                                    $appRoot = Split-Path (Split-Path $Path -Parent) -Parent
-                                    $errDir = Join-Path $appRoot "logs\errors"
-                                    if (-not (Test-Path $errDir)) {
-                                        New-Item -ItemType Directory -Path $errDir -Force | Out-Null
-                                    }
-                                    $errLog = Join-Path $errDir "runspace-persistence-errors.log"
-                                    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
-                                    $msg = $ErrorRecord.Exception.Message
-                                    $type = $ErrorRecord.Exception.GetType().FullName
-                                    $stack = $ErrorRecord.ScriptStackTrace
-                                    $line = "[$timestamp] [$Function] Path=$Path`r`n  Type: $type`r`n  Message: $msg`r`n  Stack:`r`n$stack`r`n---"
-                                    Add-Content -Path $errLog -Value $line -Encoding UTF8 -ErrorAction SilentlyContinue
-                                } catch {
-                                    # Never let the logger itself crash the runspace
-                                }
-                            }
-
-                            # BOM-safe JSON read + atomic JSON write helpers (runspace copies)
-                            function Read-JsonFile {
-                                param([Parameter(Mandatory)][string]$Path)
-                                if (-not (Test-Path $Path)) { return $null }
-                                try {
-                                    $bytes = [System.IO.File]::ReadAllBytes($Path)
-                                    $startIndex = 0
-                                    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
-                                        $startIndex = 3
-                                    }
-                                    $content = [System.Text.Encoding]::UTF8.GetString($bytes, $startIndex, $bytes.Length - $startIndex)
-                                    if ([string]::IsNullOrWhiteSpace($content)) { return $null }
-                                    return $content | ConvertFrom-Json
-                                } catch {
-                                    Write-RunspaceError -Function 'Read-JsonFile' -Path $Path -ErrorRecord $_
-                                    return $null
-                                }
-                            }
-
-                            function Write-JsonFile {
-                                param(
-                                    [Parameter(Mandatory)][string]$Path,
-                                    [Parameter(Mandatory)]$Data,
-                                    [int]$Depth = 10
-                                )
-                                $json = $Data | ConvertTo-Json -Depth $Depth
-                                $tempFile = "$Path.tmp"
-                                try {
-                                    [System.IO.File]::WriteAllText($tempFile, $json, [System.Text.Encoding]::UTF8)
-                                    if (Test-Path $Path) {
-                                        [System.IO.File]::Replace($tempFile, $Path, [NullString]::Value)
-                                    } else {
-                                        [System.IO.File]::Move($tempFile, $Path)
-                                    }
-                                    return $true
-                                } catch {
-                                    Write-RunspaceError -Function 'Write-JsonFile' -Path $Path -ErrorRecord $_
-                                    if (Test-Path $tempFile) {
-                                        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-                                    }
-                                    throw
-                                }
-                            }
-
-                            # Define Save-ExecutionRecord function in this runspace
-                            function Save-ExecutionRecord {
-                                param([object]$Execution, [string]$HistoryPath)
-
-                                $data = @{
-                                    metadata = @{
-                                        version = "1.0"
-                                        lastUpdated = (Get-Date -Format "o")
-                                        totalExecutions = 0
-                                        retentionDays = 365
-                                    }
-                                    executions = @()
-                                }
-
-                                $loaded = Read-JsonFile -Path $HistoryPath
-                                if ($loaded) {
-                                    if ($loaded.metadata) {
-                                        $data = $loaded
-                                        if (-not $data.executions) { $data.executions = @() }
-                                    } else {
-                                        # Legacy/reset file missing metadata — keep executions, rebuild schema
-                                        $data.executions = if ($loaded.executions) { @($loaded.executions) } else { @() }
-                                    }
-                                }
-
-                                $execList = [System.Collections.ArrayList]@($data.executions)
-                                $null = $execList.Insert(0, $Execution)
-
-                                # Prune old records
-                                $retentionDays = if ($data.metadata.retentionDays) { $data.metadata.retentionDays } else { 365 }
-                                $cutoffDate = (Get-Date).AddDays(-$retentionDays)
-                                $execList = [System.Collections.ArrayList]@($execList | Where-Object {
-                                    try { [DateTime]::Parse($_.startTime) -gt $cutoffDate } catch { $true }
-                                })
-
-                                $data.metadata.lastUpdated = (Get-Date -Format "o")
-                                $data.metadata.totalExecutions = $execList.Count
-                                $data.executions = @($execList)
-
-                                try {
-                                    Write-JsonFile -Path $HistoryPath -Data $data -Depth 15 | Out-Null
-                                } catch {
-                                    Write-RunspaceError -Function 'Save-ExecutionRecord' -Path $HistoryPath -ErrorRecord $_
-                                }
-                            }
-
-                            # Define Write-AuditLog function in this runspace
-                            function Write-AuditLog {
-                                param([string]$Action, [object]$Details, [string]$Initiator, [string]$AuditPath)
-
-                                $data = @{ entries = @() }
-                                $loaded = Read-JsonFile -Path $AuditPath
-                                if ($loaded) {
-                                    $data = $loaded
-                                    if (-not $data.entries) { $data.entries = @() }
-                                }
-
-                                $entry = @{
-                                    id = [Guid]::NewGuid().ToString().Substring(0, 8)
-                                    timestamp = (Get-Date -Format "o")
-                                    action = $Action
-                                    details = $Details
-                                    initiator = $Initiator
-                                }
-
-                                $entryList = [System.Collections.ArrayList]@($data.entries)
-                                $null = $entryList.Insert(0, $entry)
-
-                                # Keep last 1000 entries
-                                if ($entryList.Count -gt 1000) {
-                                    $entryList = [System.Collections.ArrayList]@($entryList | Select-Object -First 1000)
-                                }
-
-                                $data.entries = @($entryList)
-
-                                try {
-                                    Write-JsonFile -Path $AuditPath -Data $data -Depth 10 | Out-Null
-                                } catch {
-                                    Write-RunspaceError -Function 'Write-AuditLog' -Path $AuditPath -ErrorRecord $_
                                 }
                             }
 
