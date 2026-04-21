@@ -3167,14 +3167,14 @@ function Handle-APIRequest {
                         # Clear users.json
                         $usersFile = Join-Path $DataPath "users.json"
                         if (Test-Path $usersFile) {
-                            @{ users = @() } | ConvertTo-Json | Set-Content $usersFile -Encoding UTF8
+                            Write-JsonFile -Path $usersFile -Data @{ users = @() } -Depth 10 | Out-Null
                             $cleared += "Users"
                         }
 
                         # Clear execution-history.json
                         $historyFile = Join-Path $DataPath "execution-history.json"
                         if (Test-Path $historyFile) {
-                            @{
+                            Write-JsonFile -Path $historyFile -Data @{
                                 metadata = @{
                                     version = "1.0"
                                     lastUpdated = (Get-Date -Format "o")
@@ -3182,14 +3182,14 @@ function Handle-APIRequest {
                                     retentionDays = 365
                                 }
                                 executions = @()
-                            } | ConvertTo-Json -Depth 10 | Set-Content $historyFile -Encoding UTF8
+                            } -Depth 10 | Out-Null
                             $cleared += "Execution History"
                         }
 
                         # Clear audit-log.json
                         $auditFile = Join-Path $DataPath "audit-log.json"
                         if (Test-Path $auditFile) {
-                            @{ entries = @() } | ConvertTo-Json | Set-Content $auditFile -Encoding UTF8
+                            Write-JsonFile -Path $auditFile -Data @{ entries = @() } -Depth 10 | Out-Null
                             $cleared += "Audit Log"
                         }
 
@@ -3197,13 +3197,13 @@ function Handle-APIRequest {
                         $schedulesFile = Join-Path $DataPath "schedules.json"
                         if (Test-Path $schedulesFile) {
                             # Load existing schedules to remove their Windows tasks
-                            try {
-                                $schedules = Get-Content $schedulesFile -Raw | ConvertFrom-Json
+                            $schedules = Read-JsonFile -Path $schedulesFile
+                            if ($schedules -and $schedules.schedules) {
                                 foreach ($schedule in $schedules.schedules) {
                                     $null = Remove-MagnetoScheduledTask -ScheduleId $schedule.id
                                 }
-                            } catch { }
-                            @{ schedules = @() } | ConvertTo-Json | Set-Content $schedulesFile -Encoding UTF8
+                            }
+                            Write-JsonFile -Path $schedulesFile -Data @{ schedules = @() } -Depth 10 | Out-Null
                             $cleared += "Schedules"
                         }
 
@@ -3232,7 +3232,7 @@ function Handle-APIRequest {
                                 users = @()
                                 lastRun = $null
                             }
-                            $defaultRotation | ConvertTo-Json -Depth 10 | Set-Content $rotationFile -Encoding UTF8
+                            Write-JsonFile -Path $rotationFile -Data $defaultRotation -Depth 10 | Out-Null
                             $cleared += "Smart Rotation"
                         }
 
@@ -4797,7 +4797,7 @@ if (-not (Test-Path $DataPath)) {
 # Initialize techniques file if needed
 $techniquesFile = Join-Path $DataPath "techniques.json"
 if (-not (Test-Path $techniquesFile)) {
-    @{ techniques = @() } | ConvertTo-Json | Set-Content $techniquesFile -Encoding UTF8
+    Write-JsonFile -Path $techniquesFile -Data @{ techniques = @() } -Depth 10 | Out-Null
 }
 
 # Test-mode gate: dot-sourcing with the test env var set loads functions + modules
