@@ -13,6 +13,7 @@ Describe 'RunspaceHelpers Contract' -Tag 'Unit','Contract','RunspaceHelpers' {
             'Save-ExecutionRecord'
             'Write-AuditLog'
             'Write-RunspaceError'
+            'New-MagnetoRunspace'
         )
         $script:HelpersFile = Join-Path $global:RepoRoot 'modules\MAGNETO_RunspaceHelpers.ps1'
         $script:MainFile    = Join-Path $global:RepoRoot 'MagnetoWebService.ps1'
@@ -35,7 +36,7 @@ Describe 'RunspaceHelpers Contract' -Tag 'Unit','Contract','RunspaceHelpers' {
         $errors.Count | Should -Be 0
     }
 
-    It 'helpers file defines exactly the five expected top-level functions' {
+    It 'helpers file defines exactly the six expected top-level functions' {
         $tokens = $null; $errors = $null
         $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:HelpersFile, [ref]$tokens, [ref]$errors)
 
@@ -73,7 +74,7 @@ Describe 'RunspaceHelpers Contract' -Tag 'Unit','Contract','RunspaceHelpers' {
             $_ -is [System.Management.Automation.Language.FunctionDefinitionAst]
         })
         $duplicates = @($topFuncs | Where-Object { $_.Name -in $script:ExpectedNames })
-        $duplicates.Count | Should -Be 0 -Because "Five helpers must live only in MAGNETO_RunspaceHelpers.ps1; main scope dot-sources them (T2.2). Offenders: $(($duplicates | ForEach-Object Name) -join ', ')"
+        $duplicates.Count | Should -Be 0 -Because "Helpers must live only in MAGNETO_RunspaceHelpers.ps1; main scope dot-sources them (T2.2). Offenders: $(($duplicates | ForEach-Object Name) -join ', ')"
     }
 
     It 'dot-sourcing helpers file exposes all five names' {
@@ -136,5 +137,12 @@ Describe 'RunspaceHelpers Contract' -Tag 'Unit','Contract','RunspaceHelpers' {
         $cmd.Parameters['Path'].Attributes.Mandatory | Should -Contain $true
         $cmd.Parameters['Path'].ParameterType | Should -Be ([string])
         $cmd.Parameters['ErrorRecord'].Attributes.Mandatory | Should -Contain $true
+    }
+
+    It 'New-MagnetoRunspace has mandatory [string]$HelpersPath and optional [hashtable]$SharedVariables parameters' {
+        $cmd = Get-Command New-MagnetoRunspace -CommandType Function
+        $cmd.Parameters['HelpersPath'].Attributes.Mandatory | Should -Contain $true
+        $cmd.Parameters['HelpersPath'].ParameterType | Should -Be ([string])
+        $cmd.Parameters['SharedVariables'].ParameterType | Should -Be ([hashtable])
     }
 }

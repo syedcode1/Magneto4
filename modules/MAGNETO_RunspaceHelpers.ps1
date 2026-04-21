@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Dot-sourced from MagnetoWebService.ps1 startup. Also loaded into every runspace
-    via New-MagnetoRunspace (lands in T2.4) using InitialSessionState.StartupScripts.
+    via New-MagnetoRunspace (bottom of this file) using InitialSessionState.StartupScripts.
     Runtime edits to this file require a server restart (exit 1001).
 
 .NOTES
@@ -214,4 +214,60 @@ function Write-AuditLog {
     } catch {
         Write-RunspaceError -Function 'Write-AuditLog' -Path $AuditPath -ErrorRecord $_
     }
+}
+
+function New-MagnetoRunspace {
+    <#
+    .SYNOPSIS
+        Creates and opens a Runspace pre-loaded with MAGNETO's shared helpers.
+    .DESCRIPTION
+        Uses InitialSessionState.StartupScripts.Add($HelpersPath) to dot-source
+        the helpers file on runspace Open. $HelpersPath is resolved by the caller
+        in main scope (where $PSScriptRoot exists) and passed in explicitly — the
+        factory never touches $PSScriptRoot, which is $null inside runspaces
+        (RESEARCH.md KU-b). CreateDefault() (not CreateDefault2) is used because
+        MAGNETO runspaces call Windows cmdlets like Get-LocalUser and
+        Start-Process -Credential (RESEARCH.md Pitfall 6).
+    .PARAMETER HelpersPath
+        Absolute path to modules/MAGNETO_RunspaceHelpers.ps1. Caller-provided so
+        the function has zero dependency on $PSScriptRoot. Validated against
+        Test-Path before ISS construction.
+    .PARAMETER SharedVariables
+        Optional hashtable of name -> value to inject via SessionStateProxy
+        .SetVariable after the runspace opens. Used by callers that need main-
+        scope paths or callbacks available inside the runspace.
+    .OUTPUTS
+        [System.Management.Automation.Runspaces.Runspace] — opened, ready to use.
+        Caller owns disposal (Close + Dispose) and typically wraps the returned
+        runspace in a [powershell] instance via $ps.Runspace = $rs.
+    .NOTES
+        Callers construct the [powershell] wrapper themselves (preserves the
+        existing Invoke-RunspaceReaper disposal order — RESEARCH.md Pitfall 8).
+        StartupScripts re-parses the helpers file on every runspace Open (~20ms);
+        acceptable for MAGNETO's human-triggered runspace frequencies.
+    #>
+    [OutputType([System.Management.Automation.Runspaces.Runspace])]
+    param(
+        [Parameter(Mandatory)][string]$HelpersPath,
+        [hashtable]$SharedVariables = @{}
+    )
+
+    if ([string]::IsNullOrWhiteSpace($HelpersPath)) {
+        throw "New-MagnetoRunspace: HelpersPath cannot be null or empty"
+    }
+    if (-not (Test-Path $HelpersPath)) {
+        throw "New-MagnetoRunspace: helpers file not found at $HelpersPath"
+    }
+
+    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $iss.StartupScripts.Add($HelpersPath)
+
+    $runspace = [runspacefactory]::CreateRunspace($iss)
+    $runspace.Open()
+
+    foreach ($key in $SharedVariables.Keys) {
+        $runspace.SessionStateProxy.SetVariable($key, $SharedVariables[$key])
+    }
+
+    return $runspace
 }
