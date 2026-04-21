@@ -4926,12 +4926,18 @@ while ($script:ServerRunning) {
             # Opportunistic sweep: dispose any WS runspaces whose receive loop ended
             $null = Invoke-RunspaceReaper -Registry $script:WebSocketRunspaces -Label 'websocket'
 
-            # Handle WebSocket in a separate runspace to avoid blocking
-            $runspace = [runspacefactory]::CreateRunspace()
-            $runspace.Open()
-            $runspace.SessionStateProxy.SetVariable('context', $context)
-            $runspace.SessionStateProxy.SetVariable('WebSocketClients', $script:WebSocketClients)
-            $runspace.SessionStateProxy.SetVariable('ServerRunning', $script:ServerRunning)
+            # Handle WebSocket in a separate runspace to avoid blocking.
+            # Uses New-MagnetoRunspace factory (modules/MAGNETO_RunspaceHelpers.ps1)
+            # so the WS runspace gets the five shared helpers (Read-JsonFile,
+            # Write-JsonFile, Save-ExecutionRecord, Write-AuditLog, Write-RunspaceError)
+            # loaded via InitialSessionState.StartupScripts. Today the WS receive
+            # loop does not call helpers, but Phase 3+ WS auth/session events will.
+            # See .planning/phase-2/PLAN.md T2.8 and RUNSPACE-04.
+            $runspace = New-MagnetoRunspace -HelpersPath $script:RunspaceHelpersPath -SharedVariables @{
+                context          = $context
+                WebSocketClients = $script:WebSocketClients
+                ServerRunning    = $script:ServerRunning
+            }
 
             $powershell = [powershell]::Create()
             $powershell.Runspace = $runspace
