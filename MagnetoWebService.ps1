@@ -22,6 +22,13 @@ param(
 $modulesPath = "$PSScriptRoot\modules"
 Import-Module "$modulesPath\MAGNETO_ExecutionEngine.psm1" -Force
 
+# Shared helpers - single source for Read-JsonFile, Write-JsonFile,
+# Save-ExecutionRecord, Write-AuditLog, Write-RunspaceError. Loaded into every
+# runspace via New-MagnetoRunspace (lands in T2.4). See .planning/phase-2/RESEARCH.md
+# Section 3.1 (logger probe) and Pitfall 2 (no top-level code in the helpers file).
+$script:RunspaceHelpersPath = Join-Path $modulesPath 'MAGNETO_RunspaceHelpers.ps1'
+. $script:RunspaceHelpersPath
+
 # Initialize synchronized collections for thread safety
 $script:WebSocketClients = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new()
 $script:ServerRunning = $true
@@ -83,62 +90,9 @@ function Write-Log {
     Add-Content -Path $logFile -Value $logLine -Encoding UTF8
 }
 
-function Read-JsonFile {
-    <#
-    .SYNOPSIS
-        BOM-safe UTF-8 JSON reader. Returns $null if missing, corrupt, or unreadable.
-    #>
-    param(
-        [Parameter(Mandatory)][string]$Path
-    )
-    if (-not (Test-Path $Path)) { return $null }
-    try {
-        $bytes = [System.IO.File]::ReadAllBytes($Path)
-        $startIndex = 0
-        if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
-            $startIndex = 3
-        }
-        $content = [System.Text.Encoding]::UTF8.GetString($bytes, $startIndex, $bytes.Length - $startIndex)
-        if ([string]::IsNullOrWhiteSpace($content)) { return $null }
-        return $content | ConvertFrom-Json
-    }
-    catch {
-        Write-Log "Read-JsonFile failed for ${Path}: $($_.Exception.Message)" -Level Error
-        return $null
-    }
-}
-
-function Write-JsonFile {
-    <#
-    .SYNOPSIS
-        Atomic UTF-8 JSON writer. Writes to .tmp then atomically replaces the target.
-        Prevents zero-byte / partial-write corruption from crashes or concurrent writers.
-    #>
-    param(
-        [Parameter(Mandatory)][string]$Path,
-        [Parameter(Mandatory)]$Data,
-        [int]$Depth = 10
-    )
-    $json = $Data | ConvertTo-Json -Depth $Depth
-    $tempFile = "$Path.tmp"
-    try {
-        [System.IO.File]::WriteAllText($tempFile, $json, [System.Text.Encoding]::UTF8)
-        if (Test-Path $Path) {
-            # Atomic replace on NTFS: swaps .tmp into place in one metadata op.
-            [System.IO.File]::Replace($tempFile, $Path, [NullString]::Value)
-        } else {
-            [System.IO.File]::Move($tempFile, $Path)
-        }
-        return $true
-    }
-    catch {
-        if (Test-Path $tempFile) {
-            Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-        }
-        Write-Log "Write-JsonFile failed for ${Path}: $($_.Exception.Message)" -Level Error
-        throw
-    }
-}
+# Read-JsonFile / Write-JsonFile moved to modules/MAGNETO_RunspaceHelpers.ps1 (Phase 2 T2.2).
+# Dot-source happens at file-startup above; every existing main-scope caller continues
+# to resolve the name via the dot-sourced module.
 
 # Reaps completed runspace entries from a tracking hashtable, disposing their PowerShell + Runspace
 # objects. Entry shape: @{ PowerShell = [powershell]; Runspace = [runspace]; AsyncResult = [IAsyncResult] }
@@ -1442,59 +1396,10 @@ function New-MagnetoReport {
     return $htmlContent
 }
 
-function Save-ExecutionRecord {
-    param([object]$Execution)
-
-    $historyFile = Join-Path $DataPath "execution-history.json"
-
-    # Load existing data
-    $data = @{
-        metadata = @{
-            version = "1.0"
-            lastUpdated = (Get-Date -Format "o")
-            totalExecutions = 0
-            retentionDays = 365
-        }
-        executions = @()
-    }
-
-    $loaded = Read-JsonFile -Path $historyFile
-    if ($loaded) {
-        if ($loaded.metadata) {
-            $data = $loaded
-            if (-not $data.executions) { $data.executions = @() }
-        } else {
-            # Legacy/reset file missing metadata — keep executions, rebuild schema
-            $data.executions = if ($loaded.executions) { @($loaded.executions) } else { @() }
-        }
-    }
-
-    # Add new execution
-    $execList = [System.Collections.ArrayList]@($data.executions)
-    $null = $execList.Insert(0, $Execution)  # Add to beginning (newest first)
-
-    # Prune old records (older than retention days)
-    $retentionDays = if ($data.metadata.retentionDays) { $data.metadata.retentionDays } else { 365 }
-    $cutoffDate = (Get-Date).AddDays(-$retentionDays)
-    $execList = [System.Collections.ArrayList]@($execList | Where-Object {
-        try { [DateTime]::Parse($_.startTime) -gt $cutoffDate } catch { $true }
-    })
-
-    # Update metadata
-    $data.metadata.lastUpdated = (Get-Date -Format "o")
-    $data.metadata.totalExecutions = $execList.Count
-    $data.executions = @($execList)
-
-    try {
-        Write-JsonFile -Path $historyFile -Data $data -Depth 15 | Out-Null
-        Write-Log "Execution record saved to history" -Level Debug
-        return $true
-    }
-    catch {
-        Write-Log "Error saving execution history: $($_.Exception.Message)" -Level Error
-        return $false
-    }
-}
+# Save-ExecutionRecord moved to modules/MAGNETO_RunspaceHelpers.ps1 (Phase 2 T2.2).
+# Unified signature: caller MUST now pass -HistoryPath explicitly.
+# The only caller today is the async-execution runspace at the Invoke-AsyncExecution
+# block (see T2.6); it already passes -HistoryPath. No main-scope callers exist.
 
 function Get-ExecutionById {
     param([string]$Id)
@@ -1727,51 +1632,10 @@ function Get-AuditLog {
     }
 }
 
-function Write-AuditLog {
-    param(
-        [string]$Action,
-        [object]$Details = @{},
-        [string]$Initiator = "user"
-    )
-
-    $auditFile = Join-Path $DataPath "audit-log.json"
-
-    # Load existing data
-    $data = @{ entries = @() }
-    $loaded = Read-JsonFile -Path $auditFile
-    if ($loaded) {
-        $data = $loaded
-        if (-not $data.entries) { $data.entries = @() }
-    }
-
-    # Add new entry
-    $entry = @{
-        timestamp = (Get-Date -Format "o")
-        action = $Action
-        details = $Details
-        initiator = $Initiator
-    }
-
-    $entries = [System.Collections.ArrayList]@($data.entries)
-    $null = $entries.Insert(0, $entry)
-
-    # Keep only last 10000 entries
-    if ($entries.Count -gt 10000) {
-        $entries = [System.Collections.ArrayList]@($entries | Select-Object -First 10000)
-    }
-
-    $data.entries = @($entries)
-
-    # Save to file
-    try {
-        Write-JsonFile -Path $auditFile -Data $data -Depth 10 | Out-Null
-        return $true
-    }
-    catch {
-        Write-Log "Error saving audit log: $($_.Exception.Message)" -Level Error
-        return $false
-    }
-}
+# Write-AuditLog moved to modules/MAGNETO_RunspaceHelpers.ps1 (Phase 2 T2.2).
+# Unified signature: caller MUST now pass -AuditPath explicitly.
+# The only caller today is the async-execution runspace (see T2.6); it already
+# passes -AuditPath. No main-scope callers exist.
 
 # ============================================================================
 # END EXECUTION HISTORY & AUDIT LOG FUNCTIONS
