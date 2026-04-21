@@ -669,9 +669,8 @@ function Broadcast-ConsoleMessage {
                 $client.SendAsync($segment, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, [System.Threading.CancellationToken]::None).Wait()
             }
         }
-        catch {
-            # Client disconnected
-        }
+        # INTENTIONAL-SWALLOW: Client disconnected -- reaper removes dead sockets
+        catch { }
     }
 }
 
@@ -5071,9 +5070,9 @@ while ($script:ServerRunning) {
         try {
             $listener.Stop()
             $listener.Close()
-        } catch {
-            # Listener may already be disposed during restart
         }
+        # INTENTIONAL-SWALLOW: Listener may already be disposed during restart
+        catch { }
     }
     Write-Log "Server stopped" -Level Warning
 }

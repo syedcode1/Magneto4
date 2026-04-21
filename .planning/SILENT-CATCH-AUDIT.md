@@ -25,24 +25,26 @@ Line numbers are post-T2.13 edit.
 | 4 | 126 | `Invoke-RunspaceReaper` — PowerShell.Dispose | INTENTIONAL-SWALLOW | Dispose is idempotent; failure is no-op |
 | 5 | 130 | `Invoke-RunspaceReaper` — Runspace.Close | INTENTIONAL-SWALLOW | Runspace close is idempotent |
 | 6 | 132 | `Invoke-RunspaceReaper` — Runspace.Dispose | INTENTIONAL-SWALLOW | Runspace dispose is idempotent |
-| 7 | 2517 | Scheduler root-folder create (`MAGNETO` folder) | Typed catch | `[System.Runtime.InteropServices.COMException]` — folder may already exist |
-| 8 | 3119 | Status-endpoint history probe | INTENTIONAL-SWALLOW | Status-endpoint history probe is best-effort |
-| 9 | 3166 | Factory-reset schedules CRUD | Test-Path guard (not a catch) | Fixed in T2.10 — replaced direct catch with Test-Path + atomic Write-JsonFile |
-| 10 | 3556 | Broadcast-ConsoleMessage per-client | INTENTIONAL-SWALLOW | Per-client WebSocket send failure tolerated — reaper removes dead sockets |
-| 11 | 4833 | Listener-retry — Close | Warning + log | Port may race with prior instance; warn then retry |
-| 12 | 4834 | Listener-retry — Dispose | Warning + log | Same |
-| 13 | 4851 | Listener final-attempt — Close | Error + rethrow | Final attempt failure is fatal |
-| 14 | 4852 | Listener final-attempt — Dispose | Error + rethrow | Same |
-| 15 | 4921 | PowerShell.Exiting cleanup | INTENTIONAL-SWALLOW | Process is exiting; cleanup is best-effort |
-| 16 | 4979 | WS receive-loop | Non-bare (`break`) | Has `break` body, so outside FRAGILE-02 lint scope. Tightening to `[WebSocketException]` deferred — current behavior is correct (any receive failure breaks the loop and triggers client cleanup). |
-| 17 | 5021 | Restart-handler final reap | INTENTIONAL-SWALLOW | Server restart; final reap is best-effort |
-| 18 | 5066 | finally-block reap | INTENTIONAL-SWALLOW | Process cleanup; reap is best-effort |
+| 7 | 673 | `Broadcast-ConsoleMessage` free-function per-client send | INTENTIONAL-SWALLOW | Client disconnected — reaper removes dead sockets |
+| 8 | 2516 | Scheduler root-folder create (`MAGNETO` folder) | Typed catch | `[System.Runtime.InteropServices.COMException]` — folder may already exist |
+| 9 | 3118 | Status-endpoint history probe | INTENTIONAL-SWALLOW | Status-endpoint history probe is best-effort |
+| 10 | 3166 | Factory-reset schedules CRUD | Test-Path guard (not a catch) | Fixed in T2.10 — replaced direct catch with Test-Path + atomic Write-JsonFile |
+| 11 | 3555 | `Broadcast-ConsoleMessage` endpoint-body per-client send | INTENTIONAL-SWALLOW | Per-client WebSocket send failure tolerated — reaper removes dead sockets |
+| 12 | 4833 | Listener-retry — Close | Warning + log | Port may race with prior instance; warn then retry |
+| 13 | 4834 | Listener-retry — Dispose | Warning + log | Same |
+| 14 | 4851 | Listener final-attempt — Close | Error + rethrow | Final attempt failure is fatal |
+| 15 | 4852 | Listener final-attempt — Dispose | Error + rethrow | Same |
+| 16 | 4920 | PowerShell.Exiting cleanup | INTENTIONAL-SWALLOW | Process is exiting; cleanup is best-effort |
+| 17 | 4978 | WS receive-loop | Non-bare (`break`) | Has `break` body, so outside FRAGILE-02 lint scope. Tightening to `[WebSocketException]` deferred — current behavior is correct (any receive failure breaks the loop and triggers client cleanup). |
+| 18 | 5020 | Restart-handler final reap | INTENTIONAL-SWALLOW | Server restart; final reap is best-effort |
+| 19 | 5065 | finally-block reap | INTENTIONAL-SWALLOW | Process cleanup; reap is best-effort |
+| 20 | 5075 | Final-cleanup listener stop/close | INTENTIONAL-SWALLOW | Listener may already be disposed during restart |
 
 **Totals:**
-- 19 call-sites reviewed (18 live + 1 resolved via T2.10).
-- 11 INTENTIONAL-SWALLOW markers applied.
+- 21 call-sites reviewed (20 live + 1 resolved via T2.10).
+- 13 INTENTIONAL-SWALLOW markers applied.
 - 1 Typed catch (`COMException`).
-- 4 Warning/Error+log catches (reaper EndInvoke; listener retry x2; listener final-attempt x2 — 4 log-then-act sites).
+- 4 Warning/Error+log catches (reaper EndInvoke; listener retry x2; listener final-attempt x2).
 - 1 call-site replaced with `Test-Path` guard in T2.10.
 - 1 non-bare catch (`break`) documented and deferred.
 
@@ -70,7 +72,7 @@ One bare catch at line 46: `Write-RunspaceError` logger self-protect.
 
 ## Future work
 
-- T2.13 row 16 (WS receive-loop): if we later want every catch typed, tighten `catch { break }` at line 4979 to `catch [System.Net.WebSockets.WebSocketException] { break }` with a fallback `catch [System.AggregateException] { break }`. Current behavior is correct; tightening is a refinement, not a fix.
+- T2.13 row 17 (WS receive-loop): if we later want every catch typed, tighten `catch { break }` at line 4978 to `catch [System.Net.WebSockets.WebSocketException] { break }` with a fallback `catch [System.AggregateException] { break }`. Current behavior is correct; tightening is a refinement, not a fix.
 - Phase 3+ endpoint handlers will add new `catch` blocks; they must follow the same classification at write-time.
 
 *Audit complete: 2026-04-21*
