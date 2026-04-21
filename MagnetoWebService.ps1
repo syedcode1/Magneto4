@@ -5070,6 +5070,10 @@ if (-not (Test-Path $techniquesFile)) {
     @{ techniques = @() } | ConvertTo-Json | Set-Content $techniquesFile -Encoding UTF8
 }
 
+# Test-mode gate: dot-sourcing with the test env var set loads functions + modules
+# but skips HTTP listener bind. Consumed by tests/_bootstrap.ps1. See .planning/phase-1/RESEARCH.md KU-1.
+if ($env:MAGNETO_TEST_MODE -eq '1') { $NoServer = $true }
+
 # Skip server startup if -NoServer flag is set (for scheduled task execution)
 if ($NoServer) {
     Write-Log "NoServer mode - functions loaded, server not started" -Level Info
