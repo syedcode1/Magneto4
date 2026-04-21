@@ -11,7 +11,11 @@
 #   4. Dot-source MagnetoWebService.ps1 under $env:MAGNETO_TEST_MODE='1'
 #      so the HTTP listener is skipped.
 
-Set-StrictMode -Version Latest
+# Note: Set-StrictMode -Version Latest is deliberately NOT set here.
+# Pester 5 uses unassigned variables in its own runtime (PesterInvoke, etc.)
+# and strict mode causes its Discovery pass to infinite-loop re-evaluating
+# the test container. If a specific test needs strict mode, set it in the
+# test's BeforeAll/It body with a scoped Set-StrictMode.
 $ErrorActionPreference = 'Stop'
 
 # --- Pester version guard ----------------------------------------------------
@@ -28,7 +32,14 @@ Pester 5.7.1+ required. Install with:
 "@
 }
 
-Import-Module Pester -MinimumVersion 5.7.1 -Force
+# Import only if not already loaded. A re-import (especially with -Force) while
+# Pester is discovering this very test file resets Pester's internal state and
+# causes an infinite Discovery/Run loop: "Discovery found 0 tests" repeated
+# every ~270ms forever. Confirmed under Pester 5.7.1 + PS 5.1.
+$loaded = Get-Module Pester | Where-Object { $_.Version.Major -ge 5 }
+if (-not $loaded) {
+    Import-Module Pester -MinimumVersion 5.7.1
+}
 
 # --- Path resolution ---------------------------------------------------------
 $script:TestsRoot  = $PSScriptRoot
@@ -62,3 +73,26 @@ if (-not (Get-Command -Name Write-AuditLog -ErrorAction SilentlyContinue)) {
 # .planning/phase-1/RESEARCH.md KU-1 and PLAN.md T1.1.
 $env:MAGNETO_TEST_MODE = '1'
 . (Join-Path $script:RepoRoot 'MagnetoWebService.ps1')
+
+# --- Promote helper functions to global scope -------------------------------
+# Dot-sourcing MagnetoWebService.ps1 defines its functions in the scope of the
+# caller (_bootstrap.ps1), which is then collapsed when Pester enters its Run
+# phase. The `It` blocks run in their own scope and cannot see script-scoped
+# helpers. Re-defining them at global: scope here bridges the gap so every
+# test file's `It` body can call the helpers without a BeforeAll re-import.
+# Only the Phase 1 helpers under test are promoted (TEST-02..05 scope).
+$helpersToPromote = @(
+    'Read-JsonFile',
+    'Write-JsonFile',
+    'Protect-Password',
+    'Unprotect-Password',
+    'Invoke-RunspaceReaper',
+    'Get-UserRotationPhaseDecision',
+    'Get-UserRotationPhase'
+)
+foreach ($name in $helpersToPromote) {
+    $cmd = Get-Command -Name $name -CommandType Function -ErrorAction SilentlyContinue
+    if ($cmd) {
+        Set-Item -Path "Function:global:$name" -Value $cmd.ScriptBlock
+    }
+}
