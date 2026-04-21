@@ -42,9 +42,14 @@ if (-not $loaded) {
 }
 
 # --- Path resolution ---------------------------------------------------------
+# Set both script: (bootstrap's own scope) and global: so Pester's BeforeAll
+# blocks can read them regardless of how they descope through Discovery/Run.
 $script:TestsRoot  = $PSScriptRoot
 $script:RepoRoot   = Split-Path $PSScriptRoot -Parent
 $script:FixtureDir = Join-Path $PSScriptRoot 'Fixtures'
+$global:TestsRoot  = $script:TestsRoot
+$global:RepoRoot   = $script:RepoRoot
+$global:FixtureDir = $script:FixtureDir
 
 # --- Log stubs (Read/Write-JsonFile and other helpers call Write-Log) --------
 # Use function global:... so they are visible across Pester's Discovery and
