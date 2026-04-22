@@ -15,8 +15,9 @@ param(
     [int]$Port = 8080,
     [string]$WebRoot = "$PSScriptRoot\web",
     [string]$DataPath = "$PSScriptRoot\data",
-    [switch]$NoServer,    # When set, load functions only - don't start web server
-    [switch]$CreateAdmin  # Phase 3 T3.2.1: CLI-only admin bootstrap (AUTH-01)
+    [switch]$NoServer,     # When set, load functions only - don't start web server
+    [switch]$CreateAdmin,  # Phase 3 T3.2.1: CLI-only admin bootstrap (AUTH-01)
+    [switch]$NoBrowser     # Suppress auto-open browser; integration tests pass this to prevent desktop spam
 )
 
 # Import modules
@@ -5079,8 +5080,12 @@ Write-Host ""
 # Run log cleanup on startup (removes logs older than 30 days)
 Invoke-LogCleanup -RetentionDays 30
 
-# Auto-open browser
-Start-Process "http://localhost:$Port"
+# Auto-open browser -- gated so integration tests that spawn ephemeral servers
+# on random ports do not flood the developer desktop with browser windows.
+# Suppress when $NoBrowser is set OR when MAGNETO_TEST_MODE=1 (used by test fixtures).
+if (-not $NoBrowser -and $env:MAGNETO_TEST_MODE -ne '1') {
+    Start-Process "http://localhost:$Port"
+}
 
 # Register cleanup handler for when script exits (Ctrl+C, window close, etc.)
 $script:CleanupDone = $false
