@@ -197,17 +197,29 @@ function Test-PasswordHash {
         [Parameter(Mandatory)]
         [string]$PlaintextPassword,
 
+        # PSCustomObject (via ConvertFrom-Json) OR hashtable. Duck-typed below.
         [Parameter(Mandatory)]
-        [hashtable]$HashRecord
+        $HashRecord
     )
 
-    if (-not $HashRecord.ContainsKey('salt') -or -not $HashRecord.ContainsKey('hash') -or -not $HashRecord.ContainsKey('iter')) {
-        return $false
+    # Accept both hashtable (test construction) and PSCustomObject (JSON
+    # round-trip via Read-JsonFile). Duck-type the required fields.
+    $salt = $null; $hash = $null; $iter = $null
+    if ($HashRecord -is [hashtable]) {
+        if (-not $HashRecord.ContainsKey('salt') -or -not $HashRecord.ContainsKey('hash') -or -not $HashRecord.ContainsKey('iter')) {
+            return $false
+        }
+        $salt = $HashRecord['salt']; $hash = $HashRecord['hash']; $iter = $HashRecord['iter']
+    } else {
+        $salt = $HashRecord.salt; $hash = $HashRecord.hash; $iter = $HashRecord.iter
+        if ($null -eq $salt -or $null -eq $hash -or $null -eq $iter) {
+            return $false
+        }
     }
 
-    $saltBytes = [Convert]::FromBase64String($HashRecord.salt)
-    $storedHashBytes = [Convert]::FromBase64String($HashRecord.hash)
-    $iterations = [int]$HashRecord.iter
+    $saltBytes = [Convert]::FromBase64String($salt)
+    $storedHashBytes = [Convert]::FromBase64String($hash)
+    $iterations = [int]$iter
 
     $pbkdf2 = $null
     try {

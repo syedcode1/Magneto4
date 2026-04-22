@@ -30,26 +30,46 @@ $scanResult = & {
     )
 
     # Two patterns to grep:
-    #   - literal header emission "Access-Control-Allow-Origin: *"
+    #   - string-literal header emission "Access-Control-Allow-Origin: *"
+    #     (HTTP-on-the-wire form, must appear inside quotes)
     #   - PS Headers.Add form: Access-Control-Allow-Origin" followed by ", "*"
-    #     (matches the current line 3037 shape exactly)
+    #     (matches the pre-T3.2.3 line 3037 shape exactly)
+    # Both patterns require a quote adjacent to the match so documentation
+    # comments (e.g., "the `Access-Control-Allow-Origin: *` wildcard") do not
+    # trip the grep.
     $patterns = @(
-        'Access-Control-Allow-Origin:\s*\*',
+        '"Access-Control-Allow-Origin:\s*\*"',
+        "'Access-Control-Allow-Origin:\s*\*'",
         '"Access-Control-Allow-Origin"\s*,\s*"\*"'
     )
 
+    # Detect block comments <# ... #> so docstring content is excluded.
     foreach ($glob in $targetGlobs) {
         $files = @(Get-ChildItem -Path $glob -ErrorAction SilentlyContinue)
         foreach ($f in $files) {
             $scannedCount++
             $lines = [System.IO.File]::ReadAllLines($f.FullName)
+            $inBlockComment = $false
             for ($i = 0; $i -lt $lines.Count; $i++) {
+                $lineText = $lines[$i]
+                # Track block comment entry/exit (PS <# ... #>).
+                if ($inBlockComment) {
+                    if ($lineText -match '#>') { $inBlockComment = $false }
+                    continue
+                }
+                if ($lineText -match '<#') {
+                    # Single-line block comment? Honor end on same line.
+                    if ($lineText -notmatch '#>') { $inBlockComment = $true }
+                    continue
+                }
+                # Skip single-line comments.
+                if ($lineText -match '^\s*#') { continue }
                 foreach ($p in $patterns) {
-                    if ($lines[$i] -match $p) {
+                    if ($lineText -match $p) {
                         $violations += @{
                             File = $f.Name
                             Line = $i + 1
-                            Text = $lines[$i].Trim()
+                            Text = $lineText.Trim()
                         }
                         break
                     }
@@ -69,11 +89,17 @@ $global:NoCorsWildcardScannedCount = $scanResult.ScannedCount
 
 Describe 'No Access-Control-Allow-Origin: * wildcard emit (CORS-02 SC 17 part)' -Tag 'Phase3','Lint' {
 
-    It 'scanned at least 3 files (canary for Discovery-phase walk)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 2 (T3.2.3) -- wildcard at MagnetoWebService.ps1 line 3037 still present'
+    It 'scanned at least 3 files (canary for Discovery-phase walk)' {
+        $global:NoCorsWildcardScannedCount | Should -BeGreaterOrEqual 3
     }
 
-    It 'no source file contains Access-Control-Allow-Origin: * OR Headers.Add("Access-Control-Allow-Origin","*")' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 2 (T3.2.3) -- wildcard at MagnetoWebService.ps1 line 3037 still present'
+    It 'no source file contains Access-Control-Allow-Origin: * OR Headers.Add("Access-Control-Allow-Origin","*")' {
+        if ($global:NoCorsWildcardViolations.Count -gt 0) {
+            $msg = ($global:NoCorsWildcardViolations | ForEach-Object {
+                "  $($_.File):$($_.Line): $($_.Text)"
+            }) -join "`n"
+            throw "CORS wildcard emit still present. Violations:`n$msg"
+        }
+        $global:NoCorsWildcardViolations.Count | Should -Be 0
     }
 }

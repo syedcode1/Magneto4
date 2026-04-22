@@ -3097,17 +3097,42 @@ function Handle-APIRequest {
         }
     }
 
-    # Set CORS headers
-    $response.Headers.Add("Access-Control-Allow-Origin", "*")
-    $response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-    $response.Headers.Add("Access-Control-Allow-Headers", "Content-Type")
+    # Phase 3 CORS-02/03: allowlist-gated CORS header set replaces the
+    # pre-Phase-3 wildcard. Set-CorsHeaders emits Vary: Origin always,
+    # byte-for-byte echo + Allow-Credentials iff origin is allowlisted,
+    # and the Methods/Headers declarations every time.
+    Set-CorsHeaders -Request $request -Response $response -Port $Port
 
-    # Handle preflight
+    # Handle preflight -- must short-circuit BEFORE the auth prelude so
+    # CORS preflight responses don't get 401-blocked by Test-AuthContext.
     if ($method -eq "OPTIONS") {
         $response.StatusCode = 200
         $response.Close()
         return
     }
+
+    # Phase 3 AUTH-06 auth prelude: MUST precede the switch -Regex below.
+    # Returns @{OK=true; Session=<record>|$null} on allow, or
+    # @{OK=false; Status=401|403; Reason=<string>} on reject. Allowlisted
+    # paths (e.g., /api/status, /api/auth/login) come back OK with
+    # Session=$null. Session=$null on admin-only routes is handled by
+    # the per-case role guards below.
+    $authResult = Test-AuthContext -Request $request -Path $path -Method $method -Port $Port
+    if (-not $authResult.OK) {
+        $response.StatusCode = $authResult.Status
+        $body = if ($authResult.Status -eq 401) { 'Unauthorized' }
+                elseif ($authResult.Status -eq 403) { 'Forbidden' }
+                else { 'Auth failure' }
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+        $response.ContentType = 'text/plain'
+        $response.ContentLength64 = $bytes.Length
+        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+        $response.Close()
+        return
+    }
+    # Consumed by admin-only role checks in switch cases below. May be $null
+    # on allowlisted paths; role-guarded cases must null-check accordingly.
+    $script:CurrentSession = $authResult.Session
 
     $responseData = $null
     $statusCode = 200
@@ -3217,6 +3242,12 @@ function Handle-APIRequest {
 
             # POST /api/server/restart - Restart the server
             "^/api/server/restart$" {
+                # Phase 3 AUTH-07 admin guard: only admin role may restart.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 if ($method -eq "POST") {
                     Write-Log "Server restart requested by user" -Level Warning
                     $responseData = @{ success = $true; message = "Server restarting..." }
@@ -3228,6 +3259,12 @@ function Handle-APIRequest {
 
             # POST /api/system/factory-reset - Clear all user data for clean distribution
             "^/api/system/factory-reset$" {
+                # Phase 3 AUTH-07 admin guard: only admin role may factory-reset.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 if ($method -eq "POST") {
                     Write-Log "Factory reset requested by user" -Level Warning
 
@@ -3235,6 +3272,11 @@ function Handle-APIRequest {
                     $cleared = @()
 
                     try {
+                        # PRESERVE: auth.json is NEVER cleared by factory-reset (Pitfall 4:
+                        # pre-auth RCE window). If you add new clearable files here, the
+                        # NEVER-CLEAR list is: auth.json
+                        # Covered by tests/Integration/FactoryResetPreservation.Tests.ps1 --
+                        # tampering will fire that test.
                         # Clear users.json
                         $usersFile = Join-Path $DataPath "users.json"
                         if (Test-Path $usersFile) {
@@ -3328,6 +3370,22 @@ function Handle-APIRequest {
                             $cleared += "Main Log"
                         }
 
+                        # Phase 3 SESS-04: clear sessions.json so every user must
+                        # re-login after factory-reset. auth.json is NOT in this list --
+                        # see the PRESERVE comment at the top of this handler.
+                        $sessionsFile = Join-Path $DataPath "sessions.json"
+                        if (Test-Path $sessionsFile) {
+                            Write-JsonFile -Path $sessionsFile -Data @{ sessions = @() } -Depth 5 | Out-Null
+                            $cleared += "Sessions"
+                        }
+                        # Also purge the in-memory session registry so currently-active
+                        # sessions do not survive the reset via the hot registry.
+                        if (Get-Command -Name Initialize-SessionStore -ErrorAction SilentlyContinue) {
+                            try { Initialize-SessionStore -DataPath $DataPath } catch {
+                                Write-Log "Session store reinit after factory-reset failed: $($_.Exception.Message)" -Level Warning
+                            }
+                        }
+
                         Write-Log "Factory reset completed. Cleared: $($cleared -join ', ')" -Level Success
 
                         $responseData = @{
@@ -3379,6 +3437,13 @@ function Handle-APIRequest {
 
             # POST /api/siem-logging/enable - Enable SIEM logging
             "^/api/siem-logging/enable$" {
+                # Phase 3 AUTH-07 admin guard: changing system-wide SIEM logging
+                # is a security-sensitive operation, admin only.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 if ($method -eq "POST") {
                     Write-Log "Enabling SIEM logging" -Level Info
 
@@ -3412,6 +3477,13 @@ function Handle-APIRequest {
 
             # POST /api/siem-logging/disable - Disable SIEM logging
             "^/api/siem-logging/disable$" {
+                # Phase 3 AUTH-07 admin guard: disabling SIEM logging is a
+                # security-sensitive operation, admin only.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 if ($method -eq "POST") {
                     Write-Log "Disabling SIEM logging" -Level Warning
 
@@ -4444,6 +4516,13 @@ function Handle-APIRequest {
 
             # Users endpoints
             "^/api/users$" {
+                # Phase 3 AUTH-07 admin guard: user-pool CRUD (impersonation
+                # credential store) is admin only; operators cannot list or add.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 if ($method -eq "GET") {
                     $responseData = Get-Users
                 }
@@ -4472,6 +4551,13 @@ function Handle-APIRequest {
 
             # Bulk user import
             "^/api/users/bulk$" {
+                # Phase 3 AUTH-07 admin guard: bulk import of impersonation users
+                # is admin only.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 if ($method -eq "POST") {
                     $data = Get-Users
                     $importedUsers = @()
@@ -4526,6 +4612,13 @@ function Handle-APIRequest {
 
             # Test all users
             "^/api/users/test-all$" {
+                # Phase 3 AUTH-07 admin guard: bulk credential testing iterates
+                # all impersonation creds, admin only.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 if ($method -eq "POST") {
                     try {
                         $data = Get-Users
@@ -4585,6 +4678,12 @@ function Handle-APIRequest {
 
             # Single user operations
             "^/api/users/([^/]+)$" {
+                # Phase 3 AUTH-07 admin guard: user CRUD is admin only.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 $userId = $Matches[1]
                 $data = Get-Users
                 $user = $data.users | Where-Object { $_.id -eq $userId }
@@ -4636,6 +4735,13 @@ function Handle-APIRequest {
 
             # Test single user credentials
             "^/api/users/([^/]+)/test$" {
+                # Phase 3 AUTH-07 admin guard: credential testing probes real
+                # passwords, admin only.
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break  # Pitfall 1: prevent switch -Regex fall-through
+                }
                 $userId = $Matches[1]
                 $data = Get-Users
                 $user = $data.users | Where-Object { $_.id -eq $userId }
@@ -4882,6 +4988,12 @@ if ($NoServer) {
     Write-Log "NoServer mode - functions loaded, server not started" -Level Info
     return
 }
+
+# Phase 3 SESS-04: hydrate session registry from disk BEFORE the listener
+# starts so exit-1001 restart preserves logins. Per KU-f, runspaces spawned
+# after listener start cannot see script-scope registry additions -- so
+# this must land before any listener activity.
+Initialize-SessionStore -DataPath $DataPath
 
 # Create and start HTTP listener with retry logic
 $listener = $null

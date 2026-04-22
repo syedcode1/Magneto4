@@ -54,6 +54,20 @@ if ($moduleExists) {
             if ($bin.Operator -notin $forbiddenOps) { continue }
 
             $operands = @($bin.Left, $bin.Right)
+
+            # Exempt null-checks: `$null -eq $foo` and `$foo -eq $null` are
+            # idiomatic, safe, and do NOT perform byte-by-byte hash compares.
+            # The timing-side-channel only exists when comparing two non-null
+            # values. Skip if EITHER operand is a literal $null.
+            $hasNullOperand = $false
+            foreach ($op in $operands) {
+                if ($op -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                    $op.VariablePath.UserPath -eq 'null') {
+                    $hasNullOperand = $true; break
+                }
+            }
+            if ($hasNullOperand) { continue }
+
             foreach ($op in $operands) {
                 if ($op -is [System.Management.Automation.Language.VariableExpressionAst]) {
                     $varName = $op.VariablePath.UserPath
