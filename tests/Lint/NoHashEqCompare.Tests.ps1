@@ -75,10 +75,16 @@ if ($moduleExists) {
 Describe 'MAGNETO_Auth.psm1 uses no -eq/-ceq on Hash/Token/Salt (AUTH-03 SC 15 part)' -Tag 'Phase3','Lint' {
 
     It 'parses MAGNETO_Auth.psm1 without errors (once the module exists)' -Skip:(-not $global:NoHashEqCompareModuleExists) {
-        Set-ItResult -Skipped -Because 'modules/MAGNETO_Auth.psm1 does not exist yet (pending Wave 1 T3.1.2)'
+        $global:NoHashEqCompareParseErrors.Count | Should -Be 0 -Because ($global:NoHashEqCompareParseErrors -join "`n")
     }
 
     It 'no -eq / -ceq binary compare where either operand is a $Hash / $Token / $Salt variable' -Skip:(-not $global:NoHashEqCompareModuleExists) {
-        Set-ItResult -Skipped -Because 'modules/MAGNETO_Auth.psm1 does not exist yet (pending Wave 1 T3.1.2)'
+        if ($global:NoHashEqCompareViolations.Count -gt 0) {
+            $msg = ($global:NoHashEqCompareViolations | ForEach-Object {
+                "L{0} {1} on `${2}: {3}" -f $_.Line, $_.Operator, $_.VarName, $_.Text
+            }) -join "`n"
+            throw "Forbidden -eq/-ceq compare on hash/token/salt variable found:`n$msg"
+        }
+        $global:NoHashEqCompareViolations.Count | Should -Be 0
     }
 }
