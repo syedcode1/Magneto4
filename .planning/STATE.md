@@ -5,16 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** MAGNETO must remain a tool an operator can *trust* — correctness under adversarial use is the bar for every change in Wave 4+.
-**Current focus:** Phase 3 planned — ready to execute
+**Current focus:** Phase 3 Wave 0 complete — ready for Wave 1 (MAGNETO_Auth.psm1 tasks T3.1.1..T3.1.6)
 
 ## Current Position
 
-Phase: 3 of 5 — planning complete, ready to execute (Auth + Prelude + CORS + WebSocket Hardening)
-Plan: .planning/phase-3/PLAN.md (38 tasks, 5 waves: W0 scaffolds → W1 auth module → W2 server integration → W3 frontend → W4 verification)
+Phase: 3 of 5 — Wave 0 complete, 24/38 tasks done; ready for Wave 1 (MAGNETO_Auth.psm1 T3.1.1..T3.1.6)
+Plan: .planning/phase-3/PLAN.md (38 tasks, 5 waves: W0 scaffolds ✅ → W1 auth module → W2 server integration → W3 frontend → W4 verification)
 Research: .planning/phase-3/RESEARCH.md (540 lines, 11 KUs resolved, 9 pitfalls, 27 SCs mapped)
-Validation: .planning/phase-3/VALIDATION.md (27-row SC → test map, Nyquist-compliant)
+Validation: .planning/phase-3/VALIDATION.md (27-row SC → test map, Nyquist-compliant; wave_0_complete: true)
 Plan-check: .planning/phase-3/PLAN-CHECK.md (CONDITIONAL PASS → cosmetic residuals fixed)
-Last activity: 2026-04-22 — Phase 3 plan committed (56d2446); allowlist blocker closed via surgical revision
+Wave 0 summary: .planning/phase-3/SUMMARY.md (24 commits 049658f..aa45fdc; Phase3 gate 4/0/116/137 passed/failed/skipped/notrun; full gate 92/0 passed/failed)
+Last activity: 2026-04-22 — Phase 3 Wave 0 executed: 24 atomic test-scaffold commits, fixtures + manual smoke + bootstrap helper-list; no regression
 
 Progress: [████░░░░░░] 40% (2 of 5 phases complete; Phase 3 planned)
 
@@ -65,9 +66,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 — Phase 3 planning complete (research → validation → plan → plan-check → revision → re-check)
-Stopped at: Phase 3 PLAN.md + PLAN-CHECK.md committed (56d2446); ready for `/gsd:execute-phase 3`
-Resume file: None
+Last session: 2026-04-22 — Phase 3 Wave 0 execution complete (24 atomic test-scaffold commits + Wave 0 sign-off)
+Stopped at: Phase 3 Wave 0 complete -- 24/38 tasks committed (049658f..aa45fdc); SUMMARY.md written; VALIDATION.md flipped wave_0_complete: true; ready for Wave 1
+Resume file: .planning/phase-3/SUMMARY.md (Wave 0 retrospective) + .planning/phase-3/PLAN.md §Wave 1 (tasks T3.1.1..T3.1.6)
+Next command: execute Wave 1 -- build modules/MAGNETO_Auth.psm1 function-by-function (PBKDF2 hash + constant-time compare, session CRUD + token gen, Test-AuthContext prelude, Test-OriginAllowed + Set-CorsHeaders, Test-RateLimit state machine)
 
 Phase 3 planning artifacts:
 - `.planning/phase-3/RESEARCH.md` — 540 lines, 11 critical unknowns resolved (KU-a Rfc2898DeriveBytes 5-arg ctor on .NET 4.7.2; KU-b AppendHeader preserves SameSite vs Cookies.Add strips; KU-c XOR-accumulate constant-time compare; KU-d prelude insertion line 3046; KU-e 32-byte RNG; KU-f Phase 2 helpers available from runspaces; KU-g rate-limit `[hashtable]::Synchronized`; KU-h `-CreateAdmin` CLI pattern; KU-i frontend probe + window.__MAGNETO_ME; KU-j CORS byte-for-byte compare; KU-k sliding expiry) + 9 pitfalls carried forward + Deliverables Map with anchor line numbers
