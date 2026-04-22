@@ -1,14 +1,16 @@
 ---
 phase: 3
 slug: auth-prelude-cors-websocket-hardening
-wave: 1
+wave: 2
 status: in-progress
 wave_0_completed_at: 2026-04-22
 wave_1_completed_at: 2026-04-22
+wave_2_completed_at: 2026-04-22
 wave_0_commit_range: 049658f..aa45fdc
 wave_1_commit_range: 0a9e244..4689bb9
-commits_recorded: 30
-tasks_completed: 30
+wave_2_commit_range: f7b28d1..5a04d4c
+commits_recorded: 35
+tasks_completed: 34
 tasks_total_in_phase: 38
 test_gate_after_wave_0:
   phase3_default:
@@ -37,7 +39,14 @@ test_gate_after_wave_1:
     not_run: 48
     exit_code: 0
     runtime_s: 24.78
-next: 'Wave 2 -- MagnetoWebService.ps1 integration (tasks T3.2.1..T3.2.4)'
+test_gate_after_wave_2:
+  phase3_default:
+    passed: 127
+    failed: 0
+    skipped: 5
+    not_run: 48
+    exit_code: 0
+next: 'Wave 3 -- frontend (web/login.html, app.js 401/403 wrapper, topbar lastLogin, docs/RECOVERY.md)'
 ---
 
 # Phase 3 -- Wave 0 Summary
@@ -302,3 +311,98 @@ Full default gate: 136 passing (up from Wave 0's 92) = 88 Phase 1+2 holdover + 4
 **Wave 2 -- `MagnetoWebService.ps1` integration (tasks T3.2.1..T3.2.4).** Wire `MAGNETO_Auth.psm1` into the running server. Land the `-CreateAdmin` CLI switch (T3.2.1), bump `Start_Magneto.bat` .NET gate to 4.7.2 + add the admin precondition (T3.2.2), add the `Test-AuthContext` prelude to `Handle-APIRequest` before its main switch + migrate cookie emission to `AppendHeader` (T3.2.3), and add the WebSocket Origin+cookie gate before `AcceptWebSocketAsync` (T3.2.4). Every Wave 2 commit must leave the full Phase 1+2+3 unit+lint suite green and incrementally light Phase 3 Integration tests. Wave 2 commit contract: `refactor(3-T3.2.N)` for non-functional relocations; `feat(3-T3.2.N)` for new endpoints/CLI switches.
 
 Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 1 complete.
+
+---
+
+# Phase 3 -- Wave 2 Summary
+
+Wave goal: Wire `modules/MAGNETO_Auth.psm1` (Wave 1) into the running `MagnetoWebService.ps1` HTTP server. Land the `-CreateAdmin` CLI switch (T3.2.1), bump `Start_Magneto.bat` to gate on .NET 4.7.2 and precondition-check the admin account (T3.2.2), insert the `Test-AuthContext` prelude in front of the main `switch -Regex ($path)` dispatcher plus migrate cookie emission from `.Cookies.Add` to `AppendHeader`/`Set-Cookie` (T3.2.3), and finally add the three auth endpoints (`/api/auth/login|logout|me`) plus a synchronous WebSocket Origin + cookie gate before `AcceptWebSocketAsync` (T3.2.4).
+
+Wave outcome: complete. 4 task commits (T3.2.1..T3.2.4) plus one hotfix (`b1c4fff` — browser-spam guard that surfaced during manual server testing). `run-tests.ps1 -Tag Phase3` exits 0 with 127 passed / 0 failed / 5 skipped (up from Wave 1's 48 / 0 / 85). The 5 remaining Phase3-tagged skips are all Wave 3 scaffolds (LoginPageServing, AuditLogEvents, RecoveryDocExists, AdminHide manual, LastLogin manual). Zero regression in Phase 1 or Phase 2.
+
+---
+
+## Wave 2
+
+Wave 2 moved Phase 3 from "the auth module exists as a unit-testable island" to "the running server refuses unauthenticated traffic." Every endpoint now funnels through `Test-AuthContext` before reaching its switch-case; every cookie goes out via `response.AppendHeader('Set-Cookie', ...)` because `$response.Cookies.Add` silently drops the `HttpOnly` attribute on PS 5.1 / .NET Framework `HttpListener` (the NoDirectCookiesAdd lint enforces this); CORS headers now come from `Set-CorsHeaders` using a byte-for-byte loopback allowlist instead of `Access-Control-Allow-Origin: *`; WebSocket upgrade requests are validated synchronously before the `AcceptWebSocketAsync` call that would otherwise bind the connection.
+
+The `-CreateAdmin` CLI path (T3.2.1) hard-exits with code 0 after writing `data/auth.json` so `Start_Magneto.bat`'s `ERRORLEVEL 1001` re-launch check does NOT fire. This is the AUTH-01 no-listener-during-bootstrap invariant: the HTTP listener is never bound on the `-CreateAdmin` code path. The integration test `CreateAdminCli.Tests.ps1` (T3.0.3, now lit) asserts this by grepping the child process's combined stdout+stderr for `HttpListener` and `Starting MAGNETO V4 Web Server` — both must be absent.
+
+T3.2.2's batch gate now performs three checks in order before handing off: admin rights (`net session`), .NET 4.7.2 (registry key `Release >= 461808`), then admin-account precondition (dot-sources `MAGNETO_Auth.psm1`, calls `Test-MagnetoAdminAccountExists`). If the precondition returns false, the batch relaunches itself with `-CreateAdmin` appended to `%1` — the user sees an interactive prompt for username + password, a hash is written, and on exit 0 the batch falls through to normal server startup (NOT `ERRORLEVEL 1001`).
+
+T3.2.3 placed `Test-AuthContext` as the single prelude chokepoint inside `Handle-APIRequest`, executed *before* the main `switch -Regex ($path)` dispatcher. This is the PreludeBeforeSwitch invariant enforced by the lint test: every non-allowlisted route reads auth context from exactly one location; individual switch cases cannot forget to check it. The four-entry public allowlist (`^/api/auth/login$`, `^/api/auth/logout$`, `^/api/auth/me$`, `^/api/status$`) lives in `Get-UnauthAllowlist` so the RouteAuthCoverage test can diff it against the actual switch cases in Wave 4 (T3.4.1 removes the `-Tag Scaffold` from that suite).
+
+T3.2.4 landed the three auth endpoints inside the switch. `/api/auth/login` rate-limits via `Test-RateLimit` before the hash compare, runs the PBKDF2 compare via `Test-ByteArrayEqualConstantTime`, on success emits a new session token via `New-Session` with a `HttpOnly; SameSite=Strict; Secure=false` (loopback) cookie, and on failure calls `Register-LoginFailure`. `/api/auth/logout` removes the session and emits a `Max-Age=0` cookie-expiration header. `/api/auth/me` returns the current session's user record including `lastLogin`, which `Invoke-Login` updates on each successful auth. The WebSocket gate was added at the top of `Handle-WebSocket`: a bad-Origin or missing-cookie upgrade request gets a 403 and `context.Response.Close()` *before* `AcceptWebSocketAsync` is called.
+
+---
+
+## Commits
+
+All 4 Wave 2 task commits plus the browser-spam hotfix, atomic with the `feat(3-T3.2.N): ...` / `refactor(3-T3.2.N): ...` / `fix(3): ...` subject convention and a `Co-Authored-By: Claude Opus 4.7` footer.
+
+| SHA       | Subject                                                                                        | Files                                                                                         |
+|-----------|------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `f7b28d1` | feat(3-T3.2.1): add -CreateAdmin CLI switch to MagnetoWebService.ps1                           | `MagnetoWebService.ps1`, `tests/Integration/CreateAdminCli.Tests.ps1`                         |
+| `c466a6d` | feat(3-T3.2.2): add Start_Magneto.bat .NET 4.7.2 gate + admin-account precondition             | `Start_Magneto.bat`, `tests/Lint/BatchDotNetGate.Tests.ps1`, `tests/Integration/BatchAdminPrecondition.Tests.ps1` |
+| `3362b9b` | refactor(3-T3.2.3): add Handle-APIRequest auth prelude, Set-CorsHeaders, admin-role gate, session hydration | `MagnetoWebService.ps1`, `tests/Integration/AdminOnlyEndpoints.Tests.ps1`, `tests/Integration/CorsResponseHeaders.Tests.ps1`, `tests/Lint/PreludeBeforeSwitch.Tests.ps1`, `tests/Lint/NoCorsWildcard.Tests.ps1` |
+| `b1c4fff` | fix(3): guard auto-open-browser behind -NoBrowser switch + MAGNETO_TEST_MODE                   | `MagnetoWebService.ps1`                                                                       |
+| `5a04d4c` | feat(3-T3.2.4): add auth endpoints (login/logout/me) and WebSocket auth gate                   | `MagnetoWebService.ps1`, `tests/Integration/SessionPersistence.Tests.ps1`, `tests/Integration/SessionSurvivesRestart.Tests.ps1`, `tests/Integration/LogoutFlow.Tests.ps1`, `tests/Integration/CorsStateChanging.Tests.ps1`, `tests/Integration/WebSocketAuthGate.Tests.ps1`, `tests/Integration/FactoryResetPreservation.Tests.ps1`, `tests/Helpers/Start-MagnetoTestServer.ps1` |
+
+---
+
+## Test subgroup counts flipped
+
+| Scaffold / subgroup                          | Tests | Before (Wave 1)  | After (Wave 2)  | Lit by              |
+|----------------------------------------------|-------|------------------|-----------------|---------------------|
+| `CreateAdminCli.Tests.ps1`                   | 5     | 0 / 5 skipped    | 5 / 0 green     | T3.2.1              |
+| `BatchDotNetGate.Tests.ps1`                  | 4     | 0 / 4 skipped    | 4 / 0 green     | T3.2.2              |
+| `BatchAdminPrecondition.Tests.ps1`           | 3     | 0 / 3 skipped    | 3 / 0 green     | T3.2.2              |
+| `PreludeBeforeSwitch.Tests.ps1`              | 2     | 0 / 2 skipped    | 2 / 0 green     | T3.2.3              |
+| `NoCorsWildcard.Tests.ps1`                   | 3     | 0 / 3 skipped    | 3 / 0 green     | T3.2.3              |
+| `CorsResponseHeaders.Tests.ps1`              | 8     | 0 / 8 skipped    | 8 / 0 green     | T3.2.3              |
+| `AdminOnlyEndpoints.Tests.ps1`               | 12    | 0 / 12 skipped   | 12 / 0 green    | T3.2.3              |
+| `SessionPersistence.Tests.ps1`               | 7     | 0 / 7 skipped    | 7 / 0 green     | T3.2.4              |
+| `SessionSurvivesRestart.Tests.ps1`           | 4     | 0 / 4 skipped    | 4 / 0 green     | T3.2.4              |
+| `LogoutFlow.Tests.ps1`                       | 5     | 0 / 5 skipped    | 5 / 0 green     | T3.2.4              |
+| `CorsStateChanging.Tests.ps1`                | 6     | 0 / 6 skipped    | 6 / 0 green     | T3.2.4              |
+| `WebSocketAuthGate.Tests.ps1`                | 11    | 0 / 11 skipped   | 11 / 0 green    | T3.2.4              |
+| `FactoryResetPreservation.Tests.ps1`         | 9     | 0 / 9 skipped    | 9 / 0 green     | T3.2.4              |
+
+Total Wave 2 delta: +79 passing tests (Phase3-tagged), from 48 / 0 / 85 to 127 / 0 / 5. The 5 residual Phase3-tagged skips are all owned by Wave 3 (LoginPageServing + AuditLogEvents integration scaffolds + the RecoveryDocExists lint + two manual smoke cases).
+
+---
+
+## Deviations from PLAN.md
+
+Wave 2 had four deviations / late findings, each documented below with rationale. None change the externally observable behavior spec'd in PLAN.md.
+
+**1. Browser-auto-open hotfix commit (`b1c4fff`), landed mid-wave between T3.2.3 and T3.2.4.** During manual smoke testing after T3.2.3, `Start-Process $url` in `MagnetoWebService.ps1` was firing every time the server was started — including during integration tests that spawn `powershell.exe -File MagnetoWebService.ps1 -Port <ephemeral>`. The test-spawned servers were popping a browser tab per test, making the dev box unusable. Fixed by gating the `Start-Process` behind `-not $NoBrowser -and -not $env:MAGNETO_TEST_MODE`, and setting `MAGNETO_TEST_MODE=1` inside `tests/Helpers/Start-MagnetoTestServer.ps1` before spawning the child. Not in the original PLAN but surfaced when T3.2.3 integration tests started hitting the spawn path. Landed as its own commit rather than bundled into T3.2.4 because it fixes a bug, not a feature addition.
+
+**2. T3.2.1 `-CreateAdmin` BOM strip on `Read-Host` input.** `CreateAdminCli.Tests.ps1` spawns the child via `System.Diagnostics.Process` with piped stdin. PS 5.1 on .NET Framework lacks `ProcessStartInfo.StandardInputEncoding` (it's .NET Core 2.1+ only). Accessing `$proc.StandardInput` constructs a `StreamWriter` whose encoding inherits the parent's `Console.OutputEncoding`; when that is UTF-8 (the Claude Code harness default), the first `WriteLine` emits a UTF-8 BOM (`EF BB BF`) into the child's stdin pipe. The child's `Console.InputEncoding` then decodes those three bytes differently depending on its active code page: U+FEFF under UTF-8, U+2229/U+2557/U+2510 under CP437, or U+00EF/U+00BB/U+00BF under CP1252. `Read-Host 'Admin username'` swallows the BOM as part of the first input line and returns e.g. `"∩╗┐alice"` instead of `"alice"`. Fixed server-side via `$username.TrimStart([char[]]@(0xFEFF, 0x2229, 0x2557, 0x2510, 0x00EF, 0x00BB, 0x00BF))`, stripping all three decode interpretations. The test-side attempts to avoid the BOM (UTF-8-no-BOM `BaseStream.Write`) all failed because property access on `$proc.StandardInput` initializes the BOM-emitting writer before `BaseStream` is reachable. Writing the strip into the production handler is the clean solution — it also tolerates human users whose terminal happens to paste a BOM.
+
+**3. `CorsStateChanging.Tests.ps1` "no-Origin" test required `HttpWebRequest` helper.** `Invoke-WebRequest`'s `WebSession.Headers` dictionary is sticky: once a call passes `-Headers @{ 'Origin' = 'http://evil.com:8080' }` on a session, every subsequent call through that session attaches the same header even when `-Headers @{}` is explicitly passed. The "POST with NO Origin header + valid cookie is allowed" test followed three bad-Origin tests on the same `$AdminSession`, so it was silently sending `Origin: http://evil.com:8080` and getting 403 instead of the expected non-403. Added `Invoke-WireNoOrigin` helper inside `BeforeAll` which creates a `[System.Net.HttpWebRequest]` directly, builds a fresh `CookieContainer` by copying only the cookies (not the headers) out of the `WebSession`, and writes the body via `GetRequestStream`. This bypasses IWR's header-stickiness entirely. The fix is test-side only; server Origin gate logic is unchanged.
+
+**4. `AdminOnlyEndpoints.Tests.ps1` helper function relocated into `BeforeAll`.** The scaffold defined `function Invoke-AsSession` at Describe-body level (outside `BeforeAll`). Pester v5's two-phase Discovery/Run separation means functions defined at body level exist only during Discovery; by the time an `It` block runs, the function is out of scope and `Invoke-AsSession` throws `CommandNotFoundException`. Moving the definition inside `BeforeAll` puts it on the `$script` scope used during Run phase. Test-side fix only. Added an inline comment flagging the Pester v5 gotcha.
+
+No deviations on T3.2.2 (batch gate landed byte-for-byte per PLAN, both the .NET registry probe and the dot-sourced `Test-MagnetoAdminAccountExists` call), or on T3.2.3's public allowlist shape (exactly 4 entries, matching `Get-UnauthAllowlist`).
+
+---
+
+## Test-gate snapshot after Wave 2
+
+```
+> run-tests.ps1 -Tag Phase3
+Tests Passed: 127, Failed: 0, Skipped: 5, NotRun: 48    (exit 0)
+```
+
+Phase3-tagged view: 127 passing (up from 48 at Wave 1 close) = 4 canary/lint from Wave 0 + 44 from Wave 1 + 79 from Wave 2. The 5 residual Phase3 skips are all Wave 3-owned: `LoginPageServing.Tests.ps1` (T3.3.1 serves `/web/login.html`), `AuditLogEvents.Tests.ps1` (T3.3.1 emits `AuthLogin`/`AuthLogout`/`AdminBootstrap` events), `RecoveryDocExists.Tests.ps1` (T3.3.3 authors `docs/RECOVERY.md`), plus the two `Phase3.Smoke.md` manual-only cases (AUTH-14 lastLogin topbar, AUTH-13 admin-hide — no PS-side automation path). Zero regression in Phase 1 or Phase 2; every non-Scaffold test across all three phases runs green.
+
+---
+
+## Next
+
+**Wave 3 -- frontend + docs (tasks T3.3.1..T3.3.3).** Serve `web/login.html` with the 3-field login form (username, password, remember-me checkbox) and a JS probe that POSTs to `/api/auth/login`. Wrap every `fetch` call in `app.js` with a 401/403 handler that redirects to `/web/login.html` on unauth and surfaces a toast on admin-only attempts. Add the topbar widget showing `currentUser.username` + `lastLogin` formatted via `new Date(...).toLocaleString()`. Author `docs/RECOVERY.md` with the two recovery paths: "I locked myself out" (stop the server, delete `data/auth.json`, re-launch with `-CreateAdmin`) and "I lost my admin account but have operator access" (manually edit `data/auth.json` to promote an operator). Every Wave 3 commit must keep the full Phase 1+2+3 unit+lint+integration suite green, and flip the 5 residual Phase3 skips to green (or explicitly Skipped-with-reason for the two manual cases).
+
+Wave 4 (T3.4.1) is the final seal: remove `-Tag Scaffold` from `tests/RouteAuth/RouteAuthCoverage.Tests.ps1`, confirm it runs green against the switch-case regexen that land in Wave 2+3, and run the full default gate one final time. Wave 4 is a single-commit wave.
+
+Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 2 complete. `--no-transition` flag honored: Phase 3 execution stops at its own Verify step; `/gsd:new-phase 4` is a separate user-initiated command.
