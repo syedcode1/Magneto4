@@ -28,15 +28,16 @@ $global:RecoveryDocContent = if ($docExists) { Get-Content -Raw -LiteralPath $re
 
 Describe 'docs/RECOVERY.md documents offline recovery procedure (AUTH-01 SC 26)' -Tag 'Phase3','Lint' {
 
-    It 'docs/RECOVERY.md exists and is non-empty' -Skip:(-not $global:RecoveryDocExists) {
-        Set-ItResult -Skipped -Because 'docs/RECOVERY.md does not exist yet (pending Wave 3 T3.3.3)'
+    It 'docs/RECOVERY.md exists and is non-empty' {
+        $global:RecoveryDocExists | Should -BeTrue
+        $global:RecoveryDocContent.Length | Should -BeGreaterThan 0
     }
 
-    It 'docs/RECOVERY.md references the -CreateAdmin CLI mechanism' -Skip:(-not $global:RecoveryDocExists) {
-        Set-ItResult -Skipped -Because 'docs/RECOVERY.md does not exist yet (pending Wave 3 T3.3.3)'
+    It 'docs/RECOVERY.md references the -CreateAdmin CLI mechanism' {
+        $global:RecoveryDocContent | Should -Match '-CreateAdmin'
     }
 
-    It 'docs/RECOVERY.md contains the section heading ''## Last Admin Locked Out''' -Skip:(-not $global:RecoveryDocExists) {
-        Set-ItResult -Skipped -Because 'docs/RECOVERY.md does not exist yet (pending Wave 3 T3.3.3)'
+    It 'docs/RECOVERY.md contains the section heading ''## Last Admin Locked Out''' {
+        $global:RecoveryDocContent | Should -Match '## Last Admin Locked Out'
     }
 }
