@@ -1,0 +1,33 @@
+{
+  "_comment": "Phase 3 test fixture. Three sessions covering the three time-of-expiry classes the session CRUD tests exercise. Timestamps are ISO-8601 UTC relative to a fixture anchor of 2026-04-22T12:00:00Z. Tests that need 'now-relative' expiries should either mock [DateTime]::UtcNow to the anchor date OR re-compute expiries at fixture-load time via a helper. Tokens are 64 hex chars (SESS-02 requirement) with a deterministic prefix followed by zero-padding so the test output is grep-friendly.",
+  "_fixture_anchor_utc": "2026-04-22T12:00:00Z",
+  "sessions": [
+    {
+      "token": "6669787475726576616c69643030303030303030303030303030303030303030",
+      "_token_decoded_prefix": "fixturevalid000...",
+      "username": "testadmin",
+      "role": "admin",
+      "createdAt": "2026-04-22T12:00:00Z",
+      "expiresAt": "2026-05-22T12:00:00Z",
+      "lastActivityAt": "2026-04-22T12:00:00Z"
+    },
+    {
+      "token": "6669787475726565787069726564303030303030303030303030303030303030",
+      "_token_decoded_prefix": "fixtureexpired000...",
+      "username": "testops",
+      "role": "operator",
+      "createdAt": "2026-03-22T12:00:00Z",
+      "expiresAt": "2026-04-21T12:00:00Z",
+      "lastActivityAt": "2026-04-21T08:00:00Z"
+    },
+    {
+      "token": "666978747572656e656172303030303030303030303030303030303030303030",
+      "_token_decoded_prefix": "fixturenear000...",
+      "username": "testadmin_nolastlogin",
+      "role": "admin",
+      "createdAt": "2026-03-23T11:59:00Z",
+      "expiresAt": "2026-04-22T12:00:30Z",
+      "lastActivityAt": "2026-04-22T11:45:00Z"
+    }
+  ]
+}

@@ -87,15 +87,35 @@ $env:MAGNETO_TEST_MODE = '1'
 # test file's `It` body can call the helpers without a BeforeAll re-import.
 # Only the Phase 1 helpers under test are promoted (TEST-02..05 scope).
 $helpersToPromote = @(
+    # Phase 1 helpers
     'Read-JsonFile',
     'Write-JsonFile',
     'Protect-Password',
     'Unprotect-Password',
     'Invoke-RunspaceReaper',
     'Get-UserRotationPhaseDecision',
-    'Get-UserRotationPhase'
+    'Get-UserRotationPhase',
+    # Phase 3 auth helpers (prospective -- live in modules/MAGNETO_Auth.psm1 once
+    # T3.1.1..T3.1.6 land in Wave 1. The guard below makes missing names a
+    # silent no-op so Wave 0 test discovery still passes.)
+    'ConvertTo-PasswordHash',
+    'Test-PasswordHash',
+    'Test-ByteArrayEqualConstantTime',
+    'Test-MagnetoAdminAccountExists',
+    'Test-AuthContext',
+    'Test-OriginAllowed',
+    'Set-CorsHeaders',
+    'New-Session',
+    'Get-SessionByToken',
+    'Update-SessionExpiry',
+    'Remove-Session',
+    'Get-CookieValue',
+    'Test-RateLimit',
+    'New-SessionToken'
 )
 foreach ($name in $helpersToPromote) {
+    # Missing functions are a silent no-op (Phase 3 helpers stay absent until
+    # Wave 1 lands the module). Wave 0 scaffolds MUST tolerate this state.
     $cmd = Get-Command -Name $name -CommandType Function -ErrorAction SilentlyContinue
     if ($cmd) {
         Set-Item -Path "Function:global:$name" -Value $cmd.ScriptBlock

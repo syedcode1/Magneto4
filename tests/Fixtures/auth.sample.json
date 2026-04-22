@@ -1,0 +1,49 @@
+{
+  "_comment": "Phase 3 test fixture. Deterministic salts (0xAA * 16, 0xBB * 16) so Test-PasswordHash round-trips from a known plaintext are byte-reproducible. PBKDF2-SHA256 at 600000 iterations per AUTH-02 decision. Do NOT ship this into production data/auth.json -- these salts are NOT random.",
+  "_plaintext_passwords": {
+    "testadmin": "TestAdminPass123!",
+    "testops": "TestOpsPass456!",
+    "testadmin_nolastlogin": "TestAdminPass123! (same hash record as testadmin)"
+  },
+  "users": [
+    {
+      "username": "testadmin",
+      "role": "admin",
+      "hash": {
+        "algo": "PBKDF2-SHA256",
+        "iter": 600000,
+        "salt": "qqqqqqqqqqqqqqqqqqqqqg==",
+        "hash": "elTgjjFeS66vtEoDd3IBti6DQW4p506/gahwZma2HX4="
+      },
+      "disabled": false,
+      "lastLogin": "2026-04-21T15:30:00Z",
+      "createdAt": "2026-01-10T09:00:00Z"
+    },
+    {
+      "username": "testadmin_nolastlogin",
+      "role": "admin",
+      "hash": {
+        "algo": "PBKDF2-SHA256",
+        "iter": 600000,
+        "salt": "qqqqqqqqqqqqqqqqqqqqqg==",
+        "hash": "elTgjjFeS66vtEoDd3IBti6DQW4p506/gahwZma2HX4="
+      },
+      "disabled": false,
+      "lastLogin": null,
+      "createdAt": "2026-04-22T00:00:00Z"
+    },
+    {
+      "username": "testops",
+      "role": "operator",
+      "hash": {
+        "algo": "PBKDF2-SHA256",
+        "iter": 600000,
+        "salt": "u7u7u7u7u7u7u7u7u7u7uw==",
+        "hash": "nsZn5RFEu6sLMn5v0V2g4CsstBKvSeyFiuocVXpGiRA="
+      },
+      "disabled": false,
+      "lastLogin": "2026-04-20T10:15:00Z",
+      "createdAt": "2026-02-14T12:00:00Z"
+    }
+  ]
+}
