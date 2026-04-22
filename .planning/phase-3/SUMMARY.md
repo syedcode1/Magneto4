@@ -1,16 +1,18 @@
 ---
 phase: 3
 slug: auth-prelude-cors-websocket-hardening
-wave: 2
+wave: 3
 status: in-progress
 wave_0_completed_at: 2026-04-22
 wave_1_completed_at: 2026-04-22
 wave_2_completed_at: 2026-04-22
+wave_3_completed_at: 2026-04-22
 wave_0_commit_range: 049658f..aa45fdc
 wave_1_commit_range: 0a9e244..4689bb9
 wave_2_commit_range: f7b28d1..5a04d4c
-commits_recorded: 35
-tasks_completed: 34
+wave_3_commit_range: 3c5e024..e95e420
+commits_recorded: 39
+tasks_completed: 37
 tasks_total_in_phase: 38
 test_gate_after_wave_0:
   phase3_default:
@@ -46,7 +48,22 @@ test_gate_after_wave_2:
     skipped: 5
     not_run: 48
     exit_code: 0
-next: 'Wave 3 -- frontend (web/login.html, app.js 401/403 wrapper, topbar lastLogin, docs/RECOVERY.md)'
+test_gate_after_wave_3:
+  phase3_default:
+    passed: 132
+    failed: 0
+    skipped: 0
+    not_run: 140
+    exit_code: 0
+    runtime_s: 103.5
+  full_default_gate:
+    passed: 220
+    failed: 0
+    skipped: 1
+    not_run: 51
+    exit_code: 0
+    runtime_s: 107.38
+next: 'Wave 4 -- final seal (T3.4.1): remove -Tag Scaffold from RouteAuthCoverage.Tests.ps1 and run full default gate one last time before Phase 3 Verify.'
 ---
 
 # Phase 3 -- Wave 0 Summary
@@ -406,3 +423,79 @@ Phase3-tagged view: 127 passing (up from 48 at Wave 1 close) = 4 canary/lint fro
 Wave 4 (T3.4.1) is the final seal: remove `-Tag Scaffold` from `tests/RouteAuth/RouteAuthCoverage.Tests.ps1`, confirm it runs green against the switch-case regexen that land in Wave 2+3, and run the full default gate one final time. Wave 4 is a single-commit wave.
 
 Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 2 complete. `--no-transition` flag honored: Phase 3 execution stops at its own Verify step; `/gsd:new-phase 4` is a separate user-initiated command.
+
+---
+
+## Wave 3
+
+Wave goal: deliver the browser-facing half of AUTH-01..AUTH-14 so that the Wave 2 server-side prelude and `/api/auth/*` endpoints are actually usable by an operator. Stand up a standalone `web/login.html` served by the static file handler, add a client-side probe + auth-wrapping `fetch` helper inside the SPA, render a topbar "Last login" widget, and document the offline `-CreateAdmin` recovery procedure. Every Wave 3 task flips one or more previously-skipped scaffolds from Wave 0 to green.
+
+Wave outcome: complete. Three atomic task commits landed, plus one Phase-1-lint regression fix surfaced by the final gate. `run-tests.ps1 -Tag Phase3` exits 0 with **132 passed / 0 failed / 0 skipped** (up from 127/0/5 at Wave 2 close — the 5 residual skips from Wave 2 flipped green). Full default gate (Phase 1 + 2 + 3) exits 0 with **220 passed / 0 failed / 1 skipped** — the one remaining skip is the `Phase3.Smoke.md` manual UI case (AUTH-14 lastLogin topbar render), kept skipped by design because it has no PS-side automation path.
+
+### Commit log
+
+| Commit | Task | Subject |
+|--------|------|---------|
+| `3c5e024` | T3.3.1 | feat: add web/login.html standalone login page |
+| `8bdb0cb` | T3.3.2 | feat: add /api/auth/me probe, 401/403 handling, topbar lastLogin, admin-hide |
+| `32bfc21` | T3.3.3 | docs: add docs/RECOVERY.md offline admin recovery procedure |
+| `e95e420` | Wave 3 deviation | fix: move WS-reject INTENTIONAL-SWALLOW marker to satisfy NoBareCatch lint |
+
+### What landed
+
+**T3.3.1 — `web/login.html` (~250 lines, self-contained).** A standalone HTML page with inline `<style>` (local matrix-theme variables so it renders without loading `/css/matrix-theme.css`, which itself requires auth) and inline `<script>` that POSTs to `/api/auth/login` with `credentials: 'include'`. On 200 it reads `body.lastLogin` from the response, logs it to console, and `window.location.replace('/')`. On 429 it reads `Retry-After` and surfaces a rate-limit banner with the retry delay. On any other non-200 it surfaces a deliberately generic "Username or password incorrect" banner (no user-exists disclosure — AUTH-04). A `?expired=1` query string shows a yellow session-expired banner, triggered by either the SPA probe (below) or the WebSocket close-code handler. Flipped `LoginPageServing.Tests.ps1` from 2 Skipped to 7 passing by passing `-WebRoot (Join-Path $RepoRoot 'web')` to `Start-MagnetoTestServer` (the default stub helper has an empty `index.html`).
+
+**T3.3.2 — SPA auth integration in `web/index.html`, `web/js/app.js`, `web/js/websocket-client.js`, `web/css/matrix-theme.css`.** Four coordinated edits:
+
+  1. `index.html` `<head>`: inline async-IIFE probe before `<link rel="stylesheet">` that calls `/api/auth/me` with `credentials: 'include'`. On 401 → `location.replace('/login.html?expired=1')`. On non-OK → `location.replace('/login.html')`. On success → stash the user blob on `window.__MAGNETO_ME` for `app.js` to read. Critically, the IIFE does NOT `await` before exiting — it runs in the background while the rest of `<head>` parses, so `app.js` loads concurrently.
+
+  2. `app.js` constructor reads `window.__MAGNETO_ME`; `init()` adds three new calls at the head (before theme/nav/WebSocket): `renderUserTopbar()`, `applyRoleVisibility()`, `setupLogout()`. The `api(endpoint, options)` helper is rewritten to default `credentials: 'include'` and short-circuit the 401/403 cases: 401 → `location.replace('/login.html?expired=1')` + return null; 403 → show toast "Not allowed" + return null. `renderUserTopbar()` writes the username and a `new Date(user.lastLogin).toLocaleString()` (or "First login" on null) into the DOM. `applyRoleVisibility()` hides `[data-view="users"]`, `[data-view="scheduler"]`, and the factory-reset button when `user.role !== 'admin'`. `setupLogout()` wires the topbar logout button to `POST /api/auth/logout` (credentials: 'include') then `location.replace('/login.html')`.
+
+  3. `websocket-client.js` `onclose` grows two new close-code branches: `4401`/`401` → `location.replace('/login.html?expired=1')` + bail (no reconnect). `4403`/`403` → log configuration error, `this.isConnected = false`, stop ping, fire disconnect handlers, explicitly do NOT re-enter `handleDisconnect()` (which would auto-reconnect in a doomed loop). All other close codes fall through to the existing exponential-backoff reconnect.
+
+  4. `matrix-theme.css` grows a `.user-info` flex-column widget, a muted-secondary `.user-lastlogin` line style, and a red-on-hover `.btn-logout` treatment — all scoped to the topbar and using the existing `--primary` variable set so theme switching continues to flow through.
+
+  Test effect: flipped `AuditLogEvents.Tests.ps1` (3 cases) from Skipped to passing — the Wave 2 `/api/auth/*` handlers already emit the required `AuthLogin`/`AuthLogout`/`AdminBootstrap` events, the Wave-0 scaffold was just awaiting Wave 3 to land its `Login` scenario fixture.
+
+**T3.3.3 — `docs/RECOVERY.md` (~117 lines).** The offline recovery escape hatch, structured as four runbook sections: (a) *Last Admin Locked Out* — 8-step stop/backup/`-CreateAdmin`/verify/relaunch sequence with exact PS commands, including the AUTH-01 no-argv-secrets note explaining why passwords cannot be passed on the command line; (b) *Password Forgotten (Still Have One Admin)* — current-build workaround until the Phase 4 in-app reset lands; (c) *Corrupted `auth.json`* — move-aside + re-bootstrap procedure; (d) *DPAPI-Encrypted `users.json` Portability* — the reminder that impersonation-pool creds are CurrentUser-scope DPAPI and therefore machine/account-bound, while `auth.json` PBKDF2 hashes are portable. Flipped `RecoveryDocExists.Tests.ps1` (3 cases) from Skipped to passing by checking file presence, `-CreateAdmin` reference, and the `## Last Admin Locked Out` heading.
+
+### Deviations
+
+1. **WS-reject bare-catch INTENTIONAL-SWALLOW placement (`e95e420`).** The Wave 2 T3.2.4 commit introduced a `try/catch` around the 403-reject response write on the WebSocket upgrade path, with the INTENTIONAL-SWALLOW marker placed INSIDE the catch body. The Phase 1 `NoBareCatch.Tests.ps1` lint (FRAGILE-02) walks from `catch.StartLineNumber - 2` upward over blank lines and reads the first non-blank line — comment lines are NOT crossed, only blanks. So a multi-line comment block inside the catch body fails the check, and even a multi-line block ABOVE catch fails (the walk stops at the last `#` line, not the marker `#` line). The fix: collapse the three-line explanation to a single-line `# INTENTIONAL-SWALLOW: …` marker placed between the closing `}` of try and the `catch` keyword, matching the regression-fixture pattern at `NoBareCatch.Tests.ps1:234-239`. This surfaced only in the Wave-3-close full-suite run because the Wave 2 close gate ran `-Tag Phase3` which does not exercise Phase 1 lint files by tag.
+
+2. **Static-file log invisibility (diagnostic, not a fix).** User-reported first-boot log showed `/api/auth/me` + WS rejection + `/api/status` without any `/login.html` or `/api/auth/login` entries, which could read as "the redirect never fired." Actual cause: `Handle-StaticFile` does NOT call `Write-Log "API Request"` (that line lives inside `Handle-APIRequest` only, at MagnetoWebService.ps1:3154). So the browser's GET `/login.html` after the probe's 401→redirect is genuinely invisible in the server log — expected behavior, not a Wave 3 bug. The noisy `/api/status` + WS-rejected calls are the result of the async IIFE probe not blocking subsequent `<head>` parsing: `app.js` continues loading and fires `connect()` + its initial `/api/status` poll concurrently with the in-flight probe, and only once the probe resolves with 401 does `location.replace()` fire. Documented here so future readers aren't misled by the same log shape.
+
+### Test subgroup deltas
+
+| Subgroup | Wave 2 close | Wave 3 close | Delta |
+|---|---|---|---|
+| `LoginPageServing.Tests.ps1` (AUTH-04 SC 21) | 2 Skipped | 7 Passed | +5 |
+| `AuditLogEvents.Tests.ps1` (AUDIT-01/02/03 SC 22) | 3 Skipped | 3 Passed | flipped green |
+| `RecoveryDocExists.Tests.ps1` (AUTH-01 SC 26) | 3 Skipped | 3 Passed | flipped green |
+| `NoBareCatch.Tests.ps1` (Phase 1 FRAGILE-02) | 9 Passed | 9 Passed (after fix) | regressed mid-wave then restored |
+| Phase3-tag total | 127/0/5 | 132/0/0 | +5 green, -5 skipped |
+| Full default gate | 215/0/1 + scaffold | 220/0/1 + scaffold | +5 green |
+
+The remaining 1 skipped in the full gate is `Phase3.Smoke.md` §1 (AUTH-14 lastLogin topbar DOM render) — manual-only by design, no automation path.
+
+---
+
+## Test-gate snapshot after Wave 3
+
+```
+> run-tests.ps1 -Tag Phase3
+Tests Passed: 132, Failed: 0, Skipped: 0, NotRun: 140    (exit 0, 103.5 s)
+
+> run-tests.ps1          (default gate -- excludes -Tag Scaffold)
+Tests Passed: 220, Failed: 0, Skipped: 1, NotRun: 51      (exit 0, 107.4 s)
+```
+
+Phase3-tag view: all 132 Phase 3 tests now green. Wave 2 closed with 5 Phase3 skips (3 Wave-3-owned automation + 2 manual smoke); Wave 3 flipped all 3 automation skips green and kept the 2 manual-smoke cases out of the Phase3-tag gate (they live in `Phase3.Smoke.md`, not a `.Tests.ps1` file). Zero Phase 1 or Phase 2 regressions: the NoBareCatch lint regressed briefly mid-wave but was restored by `e95e420` before the wave closed. The 140 NotRun figure is the Scaffold-tagged `RouteAuthCoverage.Tests.ps1` (excluded by default; Wave 4 T3.4.1 will flip it in).
+
+---
+
+## Next
+
+**Wave 4 -- final seal (tasks T3.4.1).** Remove `-Tag Scaffold` from `tests/RouteAuth/RouteAuthCoverage.Tests.ps1` so the route-auth exhaustive coverage test runs as part of the default gate. The test walks every `/api/*` route case in `Handle-APIRequest`'s `switch -Regex` and asserts each one is either in the allowlist OR returns 401 without a cookie. Wave 2's prelude (`3362b9b`) is the assumed contract; Wave 4 flips the canary on it. Single-commit wave; expected full-suite final count ≈ 220 + RouteAuth rows, all green. After T3.4.1, the phase enters Verify (gsd-verifier → VERIFICATION.md) and then STOPs per `--no-transition`.
+
+Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 3 complete. `--no-transition` flag honored: Phase 3 execution stops at its own Verify step; `/gsd:new-phase 4` is a separate user-initiated command.
