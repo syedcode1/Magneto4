@@ -829,6 +829,78 @@ function Reset-LoginFailures {
 }
 
 # ---------------------------------------------------------------------------
+# Section 5 -- CORS: Set-CorsHeaders (T3.1.6)
+# ---------------------------------------------------------------------------
+#
+# Test-OriginAllowed was already defined above in Section 3 because the
+# prelude (Test-AuthContext) called it for the CORS-04 check. T3.1.6
+# adds the response-writer half (Set-CorsHeaders) and exports both.
+
+function Set-CorsHeaders {
+    <#
+    .SYNOPSIS
+        Applies the correct CORS headers to an HttpListenerResponse based on
+        the request's Origin and the server's port.
+
+    .DESCRIPTION
+        Replaces the Phase 1-2 `Access-Control-Allow-Origin: *` wildcard with
+        an allowlist-gated policy:
+
+        - `Vary: Origin`                     -- always set so downstream
+                                                caches key on Origin.
+        - `Access-Control-Allow-Origin: <origin>`   -- only when the request's
+                                                       Origin byte-for-byte
+                                                       matches a loopback entry.
+        - `Access-Control-Allow-Credentials: true`  -- emitted iff origin is
+                                                       allowlisted. Never
+                                                       combine with a wildcard
+                                                       origin (browsers refuse).
+        - `Access-Control-Allow-Methods`      -- always set (harmless on
+                                                 disallowed origins).
+        - `Access-Control-Allow-Headers`      -- always set.
+
+        All writes use AppendHeader so existing headers stack correctly; any
+        direct $Response.Headers.Add call bypasses this function and will be
+        caught by the Phase 1 NoDirectCookiesAdd-style lint when that rule
+        expands to cover all response headers.
+
+    .PARAMETER Request
+        HttpListenerRequest (real .NET) or equivalent mock with a .Headers
+        accessor.
+
+    .PARAMETER Response
+        HttpListenerResponse (real .NET) or equivalent mock exposing
+        AppendHeader(name, value).
+
+    .PARAMETER Port
+        Server listen port, forwarded to Test-OriginAllowed.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Request,
+        [Parameter(Mandatory)]$Response,
+        [Parameter(Mandatory)][int]$Port
+    )
+
+    # Cache-correctness: every response varies on Origin, whether or not the
+    # origin ends up allowed. Prevents an allowlisted response from being
+    # served to a disallowed origin via an intermediate cache.
+    $Response.AppendHeader('Vary', 'Origin')
+
+    $origin = $Request.Headers['Origin']
+    if (Test-OriginAllowed -Origin $origin -Port $Port) {
+        $Response.AppendHeader('Access-Control-Allow-Origin', $origin)
+        $Response.AppendHeader('Access-Control-Allow-Credentials', 'true')
+    }
+
+    # Methods + Headers always set. No risk in leaking these to disallowed
+    # origins; the server-side reject already happens at the prelude for
+    # state-changing methods with bad Origin.
+    $Response.AppendHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    $Response.AppendHeader('Access-Control-Allow-Headers', 'Content-Type')
+}
+
+# ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------
 
@@ -848,5 +920,7 @@ Export-ModuleMember -Function @(
     'Test-AuthContext',
     'Test-RateLimit',
     'Register-LoginFailure',
-    'Reset-LoginFailures'
+    'Reset-LoginFailures',
+    'Test-OriginAllowed',
+    'Set-CorsHeaders'
 )
