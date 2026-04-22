@@ -280,27 +280,98 @@ Describe 'MAGNETO_Auth Test-ByteArrayEqualConstantTime (AUTH-03)' -Tag 'Phase3',
 
 Describe 'MAGNETO_Auth Test-RateLimit (AUTH-08 state machine)' -Tag 'Phase3','Unit','Phase3-RateLimit' {
 
-    It 'returns Allow=$true when failure count is below 5' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.5)'
+    BeforeAll {
+        Import-Module (Join-Path $global:RepoRoot 'modules\MAGNETO_Auth.psm1') -Force
     }
 
-    It 'returns Allow=$true AND sets LockedUntil on the 5th failure' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.5)'
+    BeforeEach {
+        # Reset per test via exported cleanup. Reset-LoginFailures only knows
+        # about a named user, so use unique usernames per test to avoid
+        # cross-test contamination with the module-scope $script:LoginAttempts.
+        $script:userA = "testuser-a-" + [Guid]::NewGuid().ToString('N').Substring(0, 8)
+        $script:userB = "testuser-b-" + [Guid]::NewGuid().ToString('N').Substring(0, 8)
     }
 
-    It 'returns Allow=$false with status 429 + Retry-After seconds when lockout is active' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.5)'
+    It '1-4 fails return Allowed=$true' {
+        for ($i = 0; $i -lt 4; $i++) {
+            Register-LoginFailure -Username $script:userA
+            $state = Test-RateLimit -Username $script:userA
+            $state.Allowed | Should -BeTrue -Because "after $($i+1) failures, user should still be allowed"
+        }
     }
 
-    It 'resets failure counter to zero after a successful login (via Reset-LoginFailures)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.5)'
+    It '5th fail triggers LockedUntil; 6th check returns 429 with Retry-After near 900s' {
+        for ($i = 0; $i -lt 5; $i++) {
+            Register-LoginFailure -Username $script:userA
+        }
+        $state = Test-RateLimit -Username $script:userA
+        $state.Allowed | Should -BeFalse
+        $state.Status | Should -Be 429
+        # Allow 30 seconds drift from test execution time: 870-900 range.
+        $state.RetryAfter | Should -BeGreaterOrEqual 870
+        $state.RetryAfter | Should -BeLessOrEqual 900
     }
 
-    It 'isolates failures per-username (Bobs failures do not affect Alice)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.5)'
+    It 'successful login Reset-LoginFailures clears counter' {
+        for ($i = 0; $i -lt 4; $i++) {
+            Register-LoginFailure -Username $script:userA
+        }
+        Reset-LoginFailures -Username $script:userA
+        (Test-RateLimit -Username $script:userA).Allowed | Should -BeTrue
+        # Confirm can fail 4 more times without triggering lockout (queue empty).
+        for ($i = 0; $i -lt 4; $i++) {
+            Register-LoginFailure -Username $script:userA
+            (Test-RateLimit -Username $script:userA).Allowed | Should -BeTrue
+        }
     }
 
-    It 'resets after LockedUntil expires (window slides forward after 15 minutes)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.5)'
+    It 'fails older than 5 min expire from the window' {
+        # Pre-seed four aged failures directly into the queue (simulating
+        # hours-old attempts) plus one fresh enqueue via the public API. The
+        # sliding window should dequeue the four aged entries on the fresh
+        # Register-LoginFailure, leaving Count=1, so no lockout.
+        InModuleScope MAGNETO_Auth -Parameters @{ uname = $script:userA } {
+            param($uname)
+            $aged = (Get-Date).AddMinutes(-10)
+            $script:LoginAttempts[$uname] = @{
+                Failures = [System.Collections.Generic.Queue[datetime]]::new()
+                LockedUntil = $null
+            }
+            for ($i = 0; $i -lt 4; $i++) {
+                $script:LoginAttempts[$uname].Failures.Enqueue($aged)
+            }
+        }
+        Register-LoginFailure -Username $script:userA
+        $state = Test-RateLimit -Username $script:userA
+        $state.Allowed | Should -BeTrue -Because 'aged failures should have been dequeued, leaving only 1 fresh entry'
+
+        $queueCount = InModuleScope MAGNETO_Auth -Parameters @{ uname = $script:userA } {
+            param($uname)
+            $script:LoginAttempts[$uname].Failures.Count
+        }
+        $queueCount | Should -Be 1
+    }
+
+    It 'different usernames track independently' {
+        for ($i = 0; $i -lt 5; $i++) {
+            Register-LoginFailure -Username $script:userA
+        }
+        (Test-RateLimit -Username $script:userA).Allowed | Should -BeFalse
+        (Test-RateLimit -Username $script:userB).Allowed | Should -BeTrue
+    }
+
+    It 'resets after LockedUntil expires (window slides forward after 15 minutes)' {
+        # Seed the lock record as though it was created 16 minutes ago, so
+        # LockedUntil is already in the past. Test-RateLimit must see this
+        # as unlocked and return Allowed=$true. Gate would otherwise require
+        # a real 15 minute Start-Sleep, which is untenable in a unit test.
+        InModuleScope MAGNETO_Auth -Parameters @{ uname = $script:userA } {
+            param($uname)
+            $script:LoginAttempts[$uname] = @{
+                Failures = [System.Collections.Generic.Queue[datetime]]::new()
+                LockedUntil = (Get-Date).AddMinutes(-1)
+            }
+        }
+        (Test-RateLimit -Username $script:userA).Allowed | Should -BeTrue
     }
 }

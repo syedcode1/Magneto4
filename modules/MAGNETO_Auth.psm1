@@ -715,6 +715,120 @@ function Test-AuthContext {
 }
 
 # ---------------------------------------------------------------------------
+# Section 4 -- Login rate limiting (T3.1.5, AUTH-08)
+# ---------------------------------------------------------------------------
+#
+# Four-state machine per Decision 9:
+#   CLEAR     -- 0 failures in the current 5-min window
+#   ACCUMULATING -- 1-4 failures in the window
+#   LOCKED    -- 5+ failures reached; locked for 15 minutes from that point
+#   COOLDOWN_EXPIRED -- LockedUntil passed; state naturally rolls to CLEAR
+#                      on the next Register-LoginFailure call
+#
+# Storage: $script:LoginAttempts is a synchronized hashtable keyed by
+# username. Each value is a record with:
+#   Failures    -- Queue[datetime]; enqueue on fail, dequeue on window-slide
+#   LockedUntil -- DateTime or $null
+#
+# Window: rolling 5-minute, enqueue-head -- any failure with wall-clock > now
+# -5min stays in the queue; anything older is dequeued before counting.
+#
+# Lockout: 15 minutes from the 5th failure. LockedUntil acts as a gate;
+# callers Test-RateLimit first, hit 429 + Retry-After if locked.
+
+$script:LoginAttempts = [hashtable]::Synchronized(@{})
+
+function Test-RateLimit {
+    <#
+    .SYNOPSIS
+        Returns whether the given username may attempt to log in right now.
+
+    .DESCRIPTION
+        If the username has a LockedUntil date in the future, returns
+        Allowed=$false with Status=429 and RetryAfter in seconds (integer
+        truncation of the remaining TimeSpan). Otherwise returns
+        Allowed=$true.
+
+    .OUTPUTS
+        [hashtable] with keys: Allowed, Status, RetryAfter.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)][string]$Username
+    )
+
+    if ($script:LoginAttempts.ContainsKey($Username)) {
+        $record = $script:LoginAttempts[$Username]
+        if ($null -ne $record.LockedUntil -and (Get-Date) -lt $record.LockedUntil) {
+            $remaining = ($record.LockedUntil - (Get-Date)).TotalSeconds
+            return @{
+                Allowed = $false
+                Status = 429
+                RetryAfter = [int]$remaining
+            }
+        }
+    }
+
+    return @{ Allowed = $true }
+}
+
+function Register-LoginFailure {
+    <#
+    .SYNOPSIS
+        Records a login failure for the given username and triggers lockout
+        at the 5th failure within a 5-minute rolling window.
+
+    .DESCRIPTION
+        Dequeues failures older than 5 minutes before counting. If the queue
+        length reaches 5 after the new enqueue, sets LockedUntil to now + 15
+        minutes. Initializes the record on first call per username.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Username
+    )
+
+    if (-not $script:LoginAttempts.ContainsKey($Username)) {
+        $script:LoginAttempts[$Username] = @{
+            Failures = [System.Collections.Generic.Queue[datetime]]::new()
+            LockedUntil = $null
+        }
+    }
+
+    $record = $script:LoginAttempts[$Username]
+    $record.Failures.Enqueue((Get-Date))
+
+    # Slide the window: drop any entry older than 5 minutes from the head.
+    $threshold = (Get-Date).AddMinutes(-5)
+    while ($record.Failures.Count -gt 0 -and $record.Failures.Peek() -lt $threshold) {
+        [void]$record.Failures.Dequeue()
+    }
+
+    if ($record.Failures.Count -ge 5) {
+        $record.LockedUntil = (Get-Date).AddMinutes(15)
+    }
+
+    $script:LoginAttempts[$Username] = $record
+}
+
+function Reset-LoginFailures {
+    <#
+    .SYNOPSIS
+        Clears the failure counter for the given username (called on
+        successful login).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Username
+    )
+
+    if ($script:LoginAttempts.ContainsKey($Username)) {
+        $script:LoginAttempts.Remove($Username)
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------
 
@@ -731,5 +845,8 @@ Export-ModuleMember -Function @(
     'Initialize-SessionStore',
     'Get-CookieValue',
     'Get-UnauthAllowlist',
-    'Test-AuthContext'
+    'Test-AuthContext',
+    'Test-RateLimit',
+    'Register-LoginFailure',
+    'Reset-LoginFailures'
 )
