@@ -5,16 +5,18 @@
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** MAGNETO must remain a tool an operator can *trust* — correctness under adversarial use is the bar for every change in Wave 4+.
-**Current focus:** Phase 2 complete — ready to plan Phase 3
+**Current focus:** Phase 3 planned — ready to execute
 
 ## Current Position
 
-Phase: 2 of 5 complete (Shared Runspace Helpers + Silent Catch Audit)
-Plan: .planning/phase-2/PLAN.md (16 tasks, 6 waves)
-Status: PASSED — verification 64c7a97
-Last activity: 2026-04-21 — Phase 2 all 16 tasks delivered; 88 passing / 0 failed
+Phase: 3 of 5 — planning complete, ready to execute (Auth + Prelude + CORS + WebSocket Hardening)
+Plan: .planning/phase-3/PLAN.md (38 tasks, 5 waves: W0 scaffolds → W1 auth module → W2 server integration → W3 frontend → W4 verification)
+Research: .planning/phase-3/RESEARCH.md (540 lines, 11 KUs resolved, 9 pitfalls, 27 SCs mapped)
+Validation: .planning/phase-3/VALIDATION.md (27-row SC → test map, Nyquist-compliant)
+Plan-check: .planning/phase-3/PLAN-CHECK.md (CONDITIONAL PASS → cosmetic residuals fixed)
+Last activity: 2026-04-22 — Phase 3 plan committed (56d2446); allowlist blocker closed via surgical revision
 
-Progress: [████░░░░░░] 40% (2 of 5 phases)
+Progress: [████░░░░░░] 40% (2 of 5 phases complete; Phase 3 planned)
 
 ## Performance Metrics
 
@@ -63,16 +65,24 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21 — Phase 2 executed end-to-end (16/16 tasks, all 6 waves)
-Stopped at: Phase 2 VERIFICATION.md committed (64c7a97); Phase 3 ready to plan
+Last session: 2026-04-22 — Phase 3 planning complete (research → validation → plan → plan-check → revision → re-check)
+Stopped at: Phase 3 PLAN.md + PLAN-CHECK.md committed (56d2446); ready for `/gsd:execute-phase 3`
 Resume file: None
 
-Phase 2 deliverables now live:
-- `modules/MAGNETO_RunspaceHelpers.ps1` — five runspace helpers + `New-MagnetoRunspace` factory
-- `tests/Lint/Runspace.FactoryUsage.Tests.ps1` — bans direct `[runspacefactory]::CreateRunspace()` outside factory
-- `tests/Lint/NoDirectJsonWrite.Tests.ps1` — bans direct `Set-Content`/`Out-File`/`WriteAllText` to `data/*.json`
-- `tests/Lint/NoBareCatch.Tests.ps1` — requires `# INTENTIONAL-SWALLOW:` marker on every strictly-empty catch
-- `tests/Unit/RunspaceHelpers.Contract.Tests.ps1`, `Runspace.Factory.Tests.ps1`, `Runspace.Identity.Tests.ps1`
-- `.planning/SILENT-CATCH-AUDIT.md` — classified audit of 20 catch-sites
+Phase 3 planning artifacts:
+- `.planning/phase-3/RESEARCH.md` — 540 lines, 11 critical unknowns resolved (KU-a Rfc2898DeriveBytes 5-arg ctor on .NET 4.7.2; KU-b AppendHeader preserves SameSite vs Cookies.Add strips; KU-c XOR-accumulate constant-time compare; KU-d prelude insertion line 3046; KU-e 32-byte RNG; KU-f Phase 2 helpers available from runspaces; KU-g rate-limit `[hashtable]::Synchronized`; KU-h `-CreateAdmin` CLI pattern; KU-i frontend probe + window.__MAGNETO_ME; KU-j CORS byte-for-byte compare; KU-k sliding expiry) + 9 pitfalls carried forward + Deliverables Map with anchor line numbers
+- `.planning/phase-3/VALIDATION.md` — Nyquist validation contract: 27 SCs → automated tests (22 new files + 1 modified Phase 1 scaffold) or manual smoke (SC-24/25 only)
+- `.planning/phase-3/PLAN.md` — 38 tasks across 5 waves (W0 scaffolds, W1 auth module, W2 server integration, W3 frontend, W4 green-flip)
+- `.planning/phase-3/PLAN-CHECK.md` — CONDITIONAL PASS on iteration 2; initial allowlist blocker (`/login.html` + `/ws` hallucination instead of `/api/status`) closed via surgical revision
 
-Per `--no-transition` flag: do NOT auto-advance. Next command: `/gsd:plan-phase 3`.
+Key decisions locked in Phase 3 plan:
+- 4-entry prelude allowlist: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/status`. Static files and `/ws` dispatched outside `Handle-APIRequest` so they never transit the prelude.
+- Rate-limit 4-state machine: (fails<5→401) / (fails==5→401+lock) / (fails≥5 AND now<LockedUntil→429+Retry-After) / (now≥LockedUntil→reset,attempt,401or200). Success resets counter.
+- Session-expired banner: probe-on-boot no-cookie → `/login.html` clean; mid-session 401 → `/login.html?expired=1`.
+- `window.__MAGNETO_ME` global, refreshed per page load; no sessionStorage.
+- `Initialize-SessionStore` runs after `Import-Module MAGNETO_Auth.psm1` and before `$listener.Start()`.
+- `-CreateAdmin` CLI reads `SecureString` via `Read-Host`, hashes via PBKDF2-SHA256 600k iter with `Rfc2898DeriveBytes` 5-arg ctor, writes `data/auth.json`, exits without listener.
+- `Start_Magneto.bat` .NET release-DWORD gate bumped from `378389` (4.5) to `461808` (4.7.2); `Test-MagnetoAdminAccountExists` precondition blocks launch if no admin user exists.
+
+Per `--no-transition` flag on Phase 2: Phase 3 execution NOT auto-started.
+Next command: `/gsd:execute-phase 3 --auto --no-transition` (per config `mode: yolo`, `auto_advance: true`, but user may prefer manual trigger).
