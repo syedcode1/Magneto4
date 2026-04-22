@@ -59,17 +59,17 @@ echo [*] Checking .NET Framework...
 for /f "tokens=*" %%i in ('powershell -Command "(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full' -ErrorAction SilentlyContinue).Release"') do set NET_RELEASE=%%i
 
 if "%NET_RELEASE%"=="" (
-    echo [X] .NET Framework 4.5 or higher is required.
+    echo [X] .NET Framework 4.7.2 or higher required.
     pause
     exit /b 1
 )
 
-if %NET_RELEASE% LSS 378389 (
-    echo [X] .NET Framework 4.5 or higher is required.
+if %NET_RELEASE% LSS 461808 (
+    echo [X] .NET Framework 4.7.2 or higher required.
     pause
     exit /b 1
 )
-echo [+] .NET Framework 4.5+ detected.
+echo [+] .NET Framework 4.7.2+ detected.
 
 :: ============================================================================
 :: Verify Required Files
@@ -116,6 +116,31 @@ echo ===========================================================================
 echo.
 echo   TIP: To use a different port, run: Start_Magneto.bat 8081
 echo.
+
+:: ============================================================================
+:: Admin-account precondition -- Phase 3 (AUTH-01, Pitfall 4 guard)
+:: ============================================================================
+:: Refuse to launch the listener if data\auth.json has no enabled admin.
+:: Prevents the pre-auth RCE window that would exist if the server booted
+:: with no admin and accepted unauthenticated /api/users/create etc.
+:: Uses exit /b 1 (NOT 1001) so the restart loop does NOT relaunch.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "& { . '%~dp0modules\MAGNETO_RunspaceHelpers.ps1'; " ^
+  "Set-Item Function:global:Read-JsonFile (Get-Command Read-JsonFile).ScriptBlock; " ^
+  "Import-Module '%~dp0modules\MAGNETO_Auth.psm1' -Force; " ^
+  "if (-not (Test-MagnetoAdminAccountExists -AuthJsonPath '%~dp0data\auth.json')) { exit 1 } }"
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERROR] No administrator account found in data\auth.json.
+    echo.
+    echo First-run setup required. Run:
+    echo     powershell.exe -ExecutionPolicy Bypass -File "%~dp0MagnetoWebService.ps1" -CreateAdmin
+    echo.
+    echo After creating an admin account, relaunch Start_Magneto.bat.
+    pause
+    exit /b 1
+)
+echo [+] Admin account verified.
 
 :: ============================================================================
 :: Launch MAGNETO Web Server (with restart loop)
