@@ -14,18 +14,76 @@
 # smart-quotes in this file (guards against multi-byte UTF-8 corruption).
 # ---------------------------------------------------------------------------
 
-Describe 'MAGNETO_Auth Get-UnauthAllowlist (allowlist contract)' -Tag 'Phase3','Unit','Phase3-Allowlist' {
+Describe 'MAGNETO_Auth Get-UnauthAllowlist + Test-AuthContext (AUTH-05/06/07, CORS-04)' -Tag 'Phase3','Unit','Phase3-Allowlist' {
 
-    It 'returns exactly four entries: POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me, GET /api/status' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.4) -- Get-UnauthAllowlist lives in MAGNETO_Auth.psm1'
+    BeforeAll {
+        Import-Module (Join-Path $global:RepoRoot 'modules\MAGNETO_Auth.psm1') -Force
     }
 
-    It 'does NOT include /login.html (served by Handle-StaticFile outside the prelude)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.4)'
+    BeforeEach {
+        $script:tempDataDir = Join-Path ([System.IO.Path]::GetTempPath()) ("magneto-allowlist-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:tempDataDir -Force | Out-Null
+        Initialize-SessionStore -DataPath $script:tempDataDir
     }
 
-    It 'does NOT include /ws (dispatched to Handle-WebSocket outside the prelude)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.4)'
+    AfterEach {
+        if ($script:tempDataDir -and (Test-Path $script:tempDataDir)) {
+            Remove-Item -Path $script:tempDataDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'allowlist count is exactly 4' {
+        (Get-UnauthAllowlist).Count | Should -Be 4
+    }
+
+    It 'allowlist contains POST /api/auth/login' {
+        $allowlist = Get-UnauthAllowlist
+        # @(...) wrap is mandatory: .Count on a single-item pipeline result
+        # reports the hashtable's key count (2), not the match count (1).
+        @($allowlist | Where-Object { $_.Method -eq 'POST' -and $_.Pattern -eq '^/api/auth/login$' }).Count | Should -Be 1
+    }
+
+    It 'allowlist contains POST /api/auth/logout' {
+        $allowlist = Get-UnauthAllowlist
+        @($allowlist | Where-Object { $_.Method -eq 'POST' -and $_.Pattern -eq '^/api/auth/logout$' }).Count | Should -Be 1
+    }
+
+    It 'allowlist contains GET /api/auth/me' {
+        $allowlist = Get-UnauthAllowlist
+        @($allowlist | Where-Object { $_.Method -eq 'GET' -and $_.Pattern -eq '^/api/auth/me$' }).Count | Should -Be 1
+    }
+
+    It 'allowlist contains GET /api/status (Start_Magneto.bat restart-poll target)' {
+        $allowlist = Get-UnauthAllowlist
+        @($allowlist | Where-Object { $_.Method -eq 'GET' -and $_.Pattern -eq '^/api/status$' }).Count | Should -Be 1
+    }
+
+    It 'allowlist does NOT contain /login.html or /ws (dispatched outside prelude)' {
+        $allowlist = Get-UnauthAllowlist
+        @($allowlist | Where-Object { $_.Pattern -match 'login\.html' -or $_.Pattern -match '/ws' }).Count | Should -Be 0
+    }
+
+    It 'Test-AuthContext rejects unlisted path with no cookie (401)' {
+        $req = @{ Headers = @{ 'Origin' = $null; 'Cookie' = $null } }
+        $result = Test-AuthContext -Request $req -Path '/api/executions' -Method 'GET' -Port 8080
+        $result.OK | Should -BeFalse
+        $result.Status | Should -Be 401
+    }
+
+    It 'Test-AuthContext rejects state-changing POST with bad Origin (403, Reason=origin)' {
+        $req = @{ Headers = @{ 'Origin' = 'http://evil.com'; 'Cookie' = $null } }
+        $result = Test-AuthContext -Request $req -Path '/api/executions' -Method 'POST' -Port 8080
+        $result.OK | Should -BeFalse
+        $result.Status | Should -Be 403
+        $result.Reason | Should -Be 'origin'
+    }
+
+    It 'Test-AuthContext permits state-changing POST with absent Origin + valid cookie' {
+        $session = New-Session -Username 'alice' -Role 'admin'
+        $req = @{ Headers = @{ 'Origin' = $null; 'Cookie' = "sessionToken=$($session.token)" } }
+        $result = Test-AuthContext -Request $req -Path '/api/executions' -Method 'POST' -Port 8080
+        $result.OK | Should -BeTrue
+        $result.Session.username | Should -Be 'alice'
     }
 }
 

@@ -520,6 +520,201 @@ function Get-CookieValue {
 }
 
 # ---------------------------------------------------------------------------
+# Section 3 -- Request prelude: Test-AuthContext + Get-UnauthAllowlist (T3.1.4)
+# ---------------------------------------------------------------------------
+#
+# Test-OriginAllowed is defined here (internal, unexported until T3.1.6) because
+# Test-AuthContext's CORS-04 state-changing check requires it as a helper. The
+# full CORS surface (Set-CorsHeaders) lands in T3.1.6 along with the public
+# export of both CORS functions.
+
+function Test-OriginAllowed {
+    <#
+    .SYNOPSIS
+        Returns $true iff $Origin byte-for-byte matches one of the three
+        loopback origins for the given port.
+
+    .DESCRIPTION
+        Pure function, no state. Byte-for-byte (-ceq) compare against a
+        three-entry array: http://localhost:$Port, http://127.0.0.1:$Port,
+        http://[::1]:$Port. Rejects empty / null Origin. Case-sensitive;
+        scheme must match exactly; no suffix-domain matches.
+
+    .NOTES
+        Exported in T3.1.6. Defined here as an internal helper because
+        Test-AuthContext calls it for the CORS-04 state-changing check.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [string]$Origin,
+        [Parameter(Mandatory)][int]$Port
+    )
+
+    if ([string]::IsNullOrEmpty($Origin)) { return $false }
+
+    $allowed = @(
+        "http://localhost:$Port",
+        "http://127.0.0.1:$Port",
+        "http://[::1]:$Port"
+    )
+    foreach ($entry in $allowed) {
+        if ($Origin -ceq $entry) { return $true }
+    }
+    return $false
+}
+
+function Get-UnauthAllowlist {
+    <#
+    .SYNOPSIS
+        Returns exactly four request-pattern entries that skip authentication.
+
+    .DESCRIPTION
+        The allowlist is a four-entry array of @{Method; Pattern} hashtables:
+          POST /api/auth/login    -- issues a session cookie on success
+          POST /api/auth/logout   -- accepts cookie but does not require one
+          GET  /api/auth/me       -- returns 401 when no cookie; not a gate
+          GET  /api/status        -- Start_Magneto.bat exit-1001 restart poll
+
+        Notably absent:
+          /login.html  -- dispatched by Handle-StaticFile, not Handle-APIRequest
+          /ws          -- dispatched by Handle-WebSocket, has its own gate
+        Neither path transits this prelude, so neither appears here. The
+        RouteAuthCoverage tests in Phase 1 assert this absence.
+
+        Decision 12 reference: Start_Magneto.bat polls /api/status after an
+        exit-1001 restart to detect the server coming back, so /api/status
+        must remain reachable without a cookie.
+
+    .OUTPUTS
+        [object[]] -- array of four hashtables, each with Method and Pattern.
+    #>
+    [CmdletBinding()]
+    param()
+
+    return @(
+        @{ Method = 'POST'; Pattern = '^/api/auth/login$' },
+        @{ Method = 'POST'; Pattern = '^/api/auth/logout$' },
+        @{ Method = 'GET';  Pattern = '^/api/auth/me$' },
+        @{ Method = 'GET';  Pattern = '^/api/status$' }
+    )
+}
+
+function Test-AuthContext {
+    <#
+    .SYNOPSIS
+        Single prelude chokepoint: evaluates Origin + cookie + session + role
+        and returns a hashtable describing whether the request may proceed.
+
+    .DESCRIPTION
+        Called by Handle-APIRequest before its main switch (T3.2.3). Returns:
+          @{ OK = $true;  Session = <record> }         -- proceed
+          @{ OK = $true;  Session = $null }            -- allowlisted, skip auth
+          @{ OK = $false; Status = <int>; Reason = <string> } -- reject
+
+        Sequence of checks:
+          1. State-changing method + bad Origin -> 403.
+          2. Allowlisted path -> OK, Session=$null.
+          3. No cookie -> 401.
+          4. No sessionToken cookie -> 401.
+          5. Cookie present but no matching session -> 401.
+          6. Session expired -> prune + audit-log + 401.
+          7. Otherwise -> bump expiry (sliding window) + OK.
+
+    .PARAMETER Request
+        The HttpListenerRequest whose Headers we inspect for Origin/Cookie.
+        Under unit test, a hashtable with a .Headers hashtable suffices.
+
+    .PARAMETER Path
+        The request path (e.g., /api/executions). No query-string.
+
+    .PARAMETER Method
+        Upper-case HTTP verb (e.g., GET, POST).
+
+    .PARAMETER Port
+        The server's listen port, used for CORS origin construction.
+
+    .OUTPUTS
+        [hashtable] with keys: OK (bool), Session (or $null), Status (int on
+        reject), Reason (string on reject).
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]$Request,
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Method,
+        [Parameter(Mandatory)][int]$Port
+    )
+
+    $origin = $Request.Headers['Origin']
+
+    # Step 1: CORS-04 state-changing check. Absent Origin is permitted
+    # (CLI / curl case). Bad Origin on a state-changing method is 403.
+    if ($Method -in 'POST','PUT','DELETE') {
+        if (-not [string]::IsNullOrEmpty($origin)) {
+            if (-not (Test-OriginAllowed -Origin $origin -Port $Port)) {
+                return @{ OK = $false; Status = 403; Reason = 'origin' }
+            }
+        }
+    }
+
+    # Step 2: allowlisted unauth paths pass without cookie.
+    foreach ($entry in Get-UnauthAllowlist) {
+        if ($Method -eq $entry.Method -and $Path -match $entry.Pattern) {
+            return @{ OK = $true; Session = $null }
+        }
+    }
+
+    # Step 3: read Cookie header.
+    $cookieHeader = $Request.Headers['Cookie']
+    if ([string]::IsNullOrEmpty($cookieHeader)) {
+        return @{ OK = $false; Status = 401; Reason = 'nocookie' }
+    }
+
+    # Step 4: extract sessionToken cookie.
+    $token = Get-CookieValue -Header $cookieHeader -Name 'sessionToken'
+    if ([string]::IsNullOrEmpty($token)) {
+        return @{ OK = $false; Status = 401; Reason = 'notoken' }
+    }
+
+    # Step 5: look up session.
+    $session = Get-SessionByToken -Token $token
+    if ($null -eq $session) {
+        return @{ OK = $false; Status = 401; Reason = 'nosession' }
+    }
+
+    # Step 6: expiry. Compare ISO-8601 strings lexicographically (valid for
+    # fixed-length UTC timestamps). If expired, prune + audit + 401.
+    $nowIso = (Get-Date).ToString('o')
+    if ($session.expiresAt -lt $nowIso) {
+        Remove-Session -Token $token
+        if (Get-Command -Name Write-AuditLog -ErrorAction SilentlyContinue) {
+            # Write-AuditLog signature requires -AuditPath. In the server
+            # scope $DataPath is in scope; under unit test, the stub from
+            # _bootstrap.ps1 ignores all args.
+            $auditPath = if ($script:AuthDataPath) { Join-Path $script:AuthDataPath 'audit-log.json' } else { $null }
+            try {
+                if ($auditPath) {
+                    Write-AuditLog -Action 'logout.expired' -Details @{ username = $session.username } -AuditPath $auditPath
+                } else {
+                    Write-AuditLog -Action 'logout.expired' -User $session.username -Details @{}
+                }
+            } catch {
+                # INTENTIONAL-SWALLOW: audit failure must not block the 401
+                # response path; server logs cover it separately.
+            }
+        }
+        return @{ OK = $false; Status = 401; Reason = 'expired' }
+    }
+
+    # Step 7: sliding window -- bump expiresAt forward.
+    Update-SessionExpiry -Token $token
+
+    return @{ OK = $true; Session = $session }
+}
+
+# ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------
 
@@ -534,5 +729,7 @@ Export-ModuleMember -Function @(
     'Update-SessionExpiry',
     'Remove-Session',
     'Initialize-SessionStore',
-    'Get-CookieValue'
+    'Get-CookieValue',
+    'Get-UnauthAllowlist',
+    'Test-AuthContext'
 )
