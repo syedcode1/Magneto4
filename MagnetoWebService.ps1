@@ -5263,11 +5263,9 @@ while ($script:ServerRunning) {
                     $context.Response.ContentLength64 = $rejectBody.Length
                     $context.Response.OutputStream.Write($rejectBody, 0, $rejectBody.Length)
                     $context.Response.Close()
-                } catch {
-                    # INTENTIONAL-SWALLOW: if the response stream was already
-                    # torn down by an overeager client disconnect, we only
-                    # care that the upgrade never completed.
                 }
+                # INTENTIONAL-SWALLOW: response stream may be torn down by an overeager client disconnect -- we only care that the upgrade never completed.
+                catch { }
                 Write-Log "WebSocket rejected: origin=$wsOrigin cookieOk=$($null -ne $wsSession)" -Level Warning
                 continue
             }
