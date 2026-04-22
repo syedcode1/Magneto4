@@ -64,6 +64,25 @@ class MagnetoWebSocket {
 
         this.ws.onclose = (event) => {
             console.log(`[WebSocket] Disconnected (code: ${event.code})`);
+            // Auth-related close codes: server rejected the upgrade mid-session
+            // (e.g., session invalidated). HTTP 401/403 on the upgrade itself
+            // are delivered as normal HTTP responses BEFORE onclose fires, so
+            // those do NOT reach here -- the probe in index.html catches those.
+            // 4401/4403 are the custom "application" range; 401/403 are included
+            // for defensive compatibility with older server code paths.
+            if (event.code === 4401 || event.code === 401) {
+                window.location.replace('/login.html?expired=1');
+                return;
+            }
+            if (event.code === 4403 || event.code === 403) {
+                console.error('[WebSocket] Rejected: Origin not allowed -- configuration error, NOT auto-reconnecting');
+                // Bypass the auto-reconnect loop -- reconnecting will just fail again.
+                this.isConnected = false;
+                this.clientId = null;
+                this.stopPingInterval();
+                this.connectionHandlers.onDisconnect.forEach(handler => handler());
+                return;
+            }
             this.handleDisconnect();
         };
 

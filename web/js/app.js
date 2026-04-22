@@ -15,11 +15,22 @@ class MagnetoApp {
         this.systemInfo = null;
         this.smartRotation = null;
 
+        // Populated by the /api/auth/me probe in index.html <head>. If this is
+        // null, the probe failed and the page has already redirected to login --
+        // init() still guards against null for safety.
+        this.user = window.__MAGNETO_ME || null;
+
         this.init();
     }
 
     async init() {
         console.log('[MAGNETO] Initializing application...');
+
+        // AUTH-14 topbar + AUTH-13 admin-hide run BEFORE any API calls so the
+        // admin-only DOM nodes are gone before operator users see them flash.
+        this.renderUserTopbar();
+        this.applyRoleVisibility();
+        this.setupLogout();
 
         // Initialize theme system
         this.initTheme();
@@ -872,17 +883,30 @@ class MagnetoApp {
     }
 
     /**
-     * Make API request
+     * Make API request. 401 -> redirect to login with ?expired=1.
+     * 403 -> toast "Not allowed" without redirect (still authenticated,
+     * just not privileged for this op). Cookies always sent.
      */
     async api(endpoint, options = {}) {
+        options = options || {};
+        options.credentials = options.credentials || 'include';
         try {
             const response = await fetch(endpoint, {
                 headers: {
                     'Content-Type': 'application/json',
-                    ...options.headers
+                    ...(options.headers || {})
                 },
                 ...options
             });
+
+            if (response.status === 401) {
+                window.location.replace('/login.html?expired=1');
+                return null;
+            }
+            if (response.status === 403) {
+                this.showToast?.('Not allowed', 'error');
+                return null;
+            }
 
             if (!response.ok) {
                 throw new Error(`API error: ${response.status}`);
@@ -893,6 +917,64 @@ class MagnetoApp {
             console.error(`[API] Error calling ${endpoint}:`, error);
             return null;
         }
+    }
+
+    /**
+     * AUTH-14: topbar renders this.user.username + formatted lastLogin.
+     */
+    renderUserTopbar() {
+        const nameEl = document.getElementById('user-name');
+        const lastEl = document.getElementById('user-lastlogin');
+        if (!this.user) {
+            if (nameEl) nameEl.textContent = '';
+            if (lastEl) lastEl.textContent = '';
+            return;
+        }
+        if (nameEl) nameEl.textContent = this.user.username || '';
+        if (lastEl) {
+            if (this.user.lastLogin) {
+                try {
+                    lastEl.textContent = new Date(this.user.lastLogin).toLocaleString();
+                } catch (_) {
+                    lastEl.textContent = String(this.user.lastLogin);
+                }
+            } else {
+                lastEl.textContent = 'First login';
+            }
+        }
+    }
+
+    /**
+     * AUTH-13: operator-role users have admin-only UI elements hidden via
+     * display:none before any interaction. Selectors map to the admin-only
+     * surface listed in the Phase-3 plan (Users nav, Scheduler nav, Factory
+     * Reset affordance).
+     */
+    applyRoleVisibility() {
+        const isAdmin = this.user && this.user.role === 'admin';
+        if (isAdmin) return;
+        const adminOnlySelectors = [
+            '.nav-item[data-view="users"]',
+            '.nav-item[data-view="scheduler"]',
+            '#btn-factory-reset'
+        ];
+        adminOnlySelectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => { el.style.display = 'none'; });
+        });
+    }
+
+    /**
+     * Wire the topbar logout button -> POST /api/auth/logout then redirect.
+     */
+    setupLogout() {
+        const btn = document.getElementById('btn-logout');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            } catch (_) { /* expected -- cookie invalidated either way */ }
+            window.location.replace('/login.html');
+        });
     }
 
     /**

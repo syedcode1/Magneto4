@@ -416,6 +416,44 @@ body {
     background: var(--status-error);
 }
 
+/* AUTH-14 topbar user info slot */
+.user-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 2px var(--spacing-sm);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    font-family: var(--font-mono);
+    line-height: 1.2;
+    max-width: 200px;
+}
+
+.user-info .user-name {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: bold;
+    text-shadow: var(--text-glow);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+
+.user-info .user-lastlogin {
+    color: var(--text-muted);
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+
+.btn-logout:hover {
+    color: var(--status-error);
+}
+
 @keyframes blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }

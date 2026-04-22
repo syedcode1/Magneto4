@@ -4,6 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MAGNETO V4 - Living Off The Land Attack Simulator</title>
+    <script>
+    (async () => {
+        try {
+            const r = await fetch('/api/auth/me', { credentials: 'include' });
+            if (r.status === 401) {
+                window.location.replace('/login.html?expired=1');
+                return;
+            }
+            if (!r.ok) {
+                window.location.replace('/login.html');
+                return;
+            }
+            window.__MAGNETO_ME = await r.json();
+        } catch (e) {
+            window.location.replace('/login.html');
+        }
+    })();
+    </script>
     <link rel="stylesheet" href="/css/matrix-theme.css">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -41,6 +59,13 @@
                     <span class="status-dot"></span>
                     <span class="status-text">Connecting...</span>
                 </div>
+                <div class="user-info" id="user-info" title="Logged-in user">
+                    <span class="user-name" id="user-name"></span>
+                    <span class="user-lastlogin" id="user-lastlogin"></span>
+                </div>
+                <button class="btn-icon btn-logout" id="btn-logout" title="Log out">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                </button>
                 <button class="btn-icon btn-siem" id="btn-siem-logging" title="SIEM Logging">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
                 </button>
