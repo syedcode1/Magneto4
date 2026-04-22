@@ -1,18 +1,20 @@
 ---
 phase: 3
 slug: auth-prelude-cors-websocket-hardening
-wave: 3
-status: in-progress
+wave: 4
+status: ready-to-verify
 wave_0_completed_at: 2026-04-22
 wave_1_completed_at: 2026-04-22
 wave_2_completed_at: 2026-04-22
 wave_3_completed_at: 2026-04-22
+wave_4_completed_at: 2026-04-22
 wave_0_commit_range: 049658f..aa45fdc
 wave_1_commit_range: 0a9e244..4689bb9
 wave_2_commit_range: f7b28d1..5a04d4c
 wave_3_commit_range: 3c5e024..e95e420
-commits_recorded: 39
-tasks_completed: 37
+wave_4_commit_range: 1cf9c6a..1cf9c6a
+commits_recorded: 41
+tasks_completed: 38
 tasks_total_in_phase: 38
 test_gate_after_wave_0:
   phase3_default:
@@ -63,7 +65,21 @@ test_gate_after_wave_3:
     not_run: 51
     exit_code: 0
     runtime_s: 107.38
-next: 'Wave 4 -- final seal (T3.4.1): remove -Tag Scaffold from RouteAuthCoverage.Tests.ps1 and run full default gate one last time before Phase 3 Verify.'
+test_gate_after_wave_4:
+  routeauth_only:
+    passed: 52
+    failed: 0
+    skipped: 0
+    not_run: 0
+    exit_code: 0
+  full_default_gate:
+    passed: 272
+    failed: 0
+    skipped: 1
+    not_run: 0
+    exit_code: 0
+    runtime_s: 112.13
+next: 'Phase 3 Verify -- gsd-verifier produces VERIFICATION.md, then STOP per --no-transition.'
 ---
 
 # Phase 3 -- Wave 0 Summary
@@ -499,3 +515,64 @@ Phase3-tag view: all 132 Phase 3 tests now green. Wave 2 closed with 5 Phase3 sk
 **Wave 4 -- final seal (tasks T3.4.1).** Remove `-Tag Scaffold` from `tests/RouteAuth/RouteAuthCoverage.Tests.ps1` so the route-auth exhaustive coverage test runs as part of the default gate. The test walks every `/api/*` route case in `Handle-APIRequest`'s `switch -Regex` and asserts each one is either in the allowlist OR returns 401 without a cookie. Wave 2's prelude (`3362b9b`) is the assumed contract; Wave 4 flips the canary on it. Single-commit wave; expected full-suite final count ≈ 220 + RouteAuth rows, all green. After T3.4.1, the phase enters Verify (gsd-verifier → VERIFICATION.md) and then STOPs per `--no-transition`.
 
 Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 3 complete. `--no-transition` flag honored: Phase 3 execution stops at its own Verify step; `/gsd:new-phase 4` is a separate user-initiated command.
+
+---
+
+## Wave 4
+
+Wave goal: close SC-6 (AUTH-05) by flipping the Phase-1 route-auth coverage scaffold from red/skipped to green. The scaffold's purpose since Phase 1 has been "every `/api/*` clause in `Handle-APIRequest`'s `switch -Regex` either appears in the public allowlist or carries an auth marker." Wave 2 introduced the `Test-AuthContext` prelude as the universal auth gate, which means individual clause bodies no longer carry markers -- the prelude guards them from outside. The scaffold's old in-body-only acceptance logic would have failed for every non-allowlisted route under this model, so Wave 4 updates the lint to recognize prelude coverage and then removes the `-Tag Scaffold` exclusion.
+
+Wave outcome: complete. Single-commit seal (`1cf9c6a`). Full default gate (Phase 1 + 2 + 3 with Scaffold tag gone): **272 passed / 0 failed / 1 skipped / 0 NotRun**. The previous 51 NotRun (the Scaffold-tagged RouteAuth rows) are now in-gate and green. The 1 remaining skip is the `Phase3.Smoke.md` AUTH-14 manual case (no automation path by design).
+
+### Commit log
+
+| Commit | Task | Subject |
+|--------|------|---------|
+| `1cf9c6a` | T3.4.1 | feat: flip RouteAuthCoverage green -- prelude-aware + Scaffold tag removed |
+
+### What landed
+
+**T3.4.1 — `tests/RouteAuth/RouteAuthCoverage.Tests.ps1` rewrite.** The lint now AST-walks `Handle-APIRequest`'s direct `EndBlock.Statements` and confirms that a `Test-AuthContext` invocation (matched by `CommandAst` with `GetCommandName() -eq 'Test-AuthContext'`) appears at an `Extent.StartOffset` less than the first `SwitchStatementAst`'s `StartOffset`. That boolean is captured into `$global:RouteAuthPreludePresent` alongside the existing `$global:RouteAuthDiscoveredCount`. A new `It 'Test-AuthContext prelude runs before the switch inside Handle-APIRequest'` canary asserts the flag is true -- if someone deletes or relocates the prelude, that canary fires loudly before any per-route row even runs.
+
+Per-route acceptance predicate changed from `$hasAuthCheck -or $isPublic` to `$isPreludeGated -or $hasInBodyAuth -or $isPublic`, where `$isPreludeGated = $global:RouteAuthPreludePresent -and -not $isPublic`. Legacy in-body markers (`$script:AuthenticationEnabled`, `Test-AuthToken`, `Test-AuthContext`) still count as valid auth checks to keep the test green under any future rollback or hybrid migration. Public allowlist unchanged: exactly the 4 entries `^/api/auth/login$`, `^/api/auth/logout$`, `^/api/auth/me$`, `^/api/status$`. The `Describe` block tag set changed from `'Scaffold','RouteAuth'` to just `'RouteAuth'`, so the test now runs in the default gate with no tag filter.
+
+47 routes discovered by the AST walk (unchanged from Phase 1 AST-authoritative count); 4 are in the public allowlist; 43 are prelude-gated. Zero routes use the legacy in-body marker path -- that branch of the predicate exists solely as a future-proofing safety valve.
+
+### Deviations
+
+None. Single-task wave, no mid-wave course corrections, no unexpected regressions. The rewrite was more invasive than a literal "remove `-Tag Scaffold`" edit because the underlying acceptance predicate had to evolve from Phase 1's per-clause model to Phase 3's prelude-gated model -- but that evolution was anticipated by PLAN.md T3.4.1 which explicitly says "confirm it runs green against the switch-case regexen that land in Wave 2+3."
+
+### Test subgroup deltas
+
+| Subgroup | Wave 3 close | Wave 4 close | Delta |
+|---|---|---|---|
+| `RouteAuthCoverage.Tests.ps1` (AUTH-05 SC 6) | 51 NotRun (Scaffold excluded) | 52 Passed | flipped green + 1 new canary |
+| Full default gate passed | 220 | 272 | +52 (RouteAuth rows pulled in) |
+| Full default gate NotRun | 51 | 0 | -51 (Scaffold tag removed) |
+| Phase3-tag gate | 132/0/0 | 132/0/0 | unchanged (RouteAuth has its own `RouteAuth` tag, not `Phase3`) |
+
+The 52 RouteAuth rows break down as: 47 per-route data-driven Its + 1 "discovered at least 40 routes" canary + 1 "prelude before switch" canary + 3 Pester reporting overhead rows (Discovery, parent, file wrapper).
+
+---
+
+## Test-gate snapshot after Wave 4
+
+```
+> run-tests.ps1 -Path tests/RouteAuth/RouteAuthCoverage.Tests.ps1
+Tests Passed: 52, Failed: 0, Skipped: 0, NotRun: 0         (exit 0, 1.4 s)
+
+> run-tests.ps1          (default gate -- Scaffold tag now absent from RouteAuth)
+Tests Passed: 272, Failed: 0, Skipped: 1, NotRun: 0        (exit 0, 112.1 s)
+```
+
+All 38 Phase 3 tasks complete. All 5 waves complete. Phase 3 automated acceptance is fully green across Phase 1 + 2 + 3 combined. The one remaining skip is `Phase3.Smoke.md` §1 AUTH-14 (lastLogin topbar DOM render) -- manual smoke by design, no PS automation path.
+
+---
+
+## Next
+
+**Phase 3 Verify -- `gsd-verifier` agent.** Produce `.planning/phase-3/VERIFICATION.md`: goal-backward walk confirming that each of the 27 Success Criteria from `ROADMAP.md §Phase 3` is delivered by code on disk (not just by tasks being committed). The verifier also spot-reads `MagnetoWebService.ps1`, `modules/MAGNETO_Auth.psm1`, `web/login.html`, `web/js/app.js`, `web/js/websocket-client.js`, `docs/RECOVERY.md`, and the full default-gate test run to confirm the SUMMARY.md claims match observed reality.
+
+**STOP per `--no-transition`.** After `VERIFICATION.md` lands, Phase 3 execution halts. `/gsd:new-phase 4` (or equivalent) is a separate user-initiated command. Do NOT auto-advance.
+
+Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 4 complete and the phase at its Verify boundary.

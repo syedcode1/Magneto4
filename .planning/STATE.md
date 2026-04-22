@@ -5,17 +5,17 @@
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** MAGNETO must remain a tool an operator can *trust* — correctness under adversarial use is the bar for every change in Wave 4+.
-**Current focus:** Phase 3 Wave 3 complete — ready for Wave 4 (T3.4.1 flip RouteAuthCoverage green) then Verify
+**Current focus:** Phase 3 Wave 4 complete — all 38 tasks done; ready for gsd-verifier → VERIFICATION.md then STOP per --no-transition
 
 ## Current Position
 
-Phase: 3 of 5 — Waves 0/1/2/3 complete, 37/38 tasks done; ready for Wave 4 (T3.4.1 single-commit seal)
-Plan: .planning/phase-3/PLAN.md (38 tasks, 5 waves: W0 ✅ → W1 ✅ → W2 ✅ → W3 ✅ → W4 pending)
+Phase: 3 of 5 — Waves 0/1/2/3/4 complete, 38/38 tasks done; Phase 3 ready for Verify gate
+Plan: .planning/phase-3/PLAN.md (38 tasks, 5 waves: W0 ✅ → W1 ✅ → W2 ✅ → W3 ✅ → W4 ✅)
 Research: .planning/phase-3/RESEARCH.md (540 lines, 11 KUs resolved, 9 pitfalls, 27 SCs mapped)
-Validation: .planning/phase-3/VALIDATION.md (wave_0/1/2/3_complete: true)
+Validation: .planning/phase-3/VALIDATION.md (all_waves_complete: true)
 Plan-check: .planning/phase-3/PLAN-CHECK.md (CONDITIONAL PASS → cosmetic residuals fixed)
-Wave 3 summary: .planning/phase-3/SUMMARY.md (39 commits total through e95e420; Phase3 gate 132/0/0; full gate 220/0/1)
-Last activity: 2026-04-22 — Phase 3 Wave 3 executed: login.html + SPA auth probe + topbar lastLogin + RECOVERY.md + NoBareCatch lint fix; all Wave-0 scaffolds now green
+Wave 4 summary: .planning/phase-3/SUMMARY.md (41 commits total through 1cf9c6a; Phase3 gate 132/0/0; full gate 272/0/1)
+Last activity: 2026-04-22 — Phase 3 Wave 4 executed: RouteAuthCoverage lint rewritten to recognize Test-AuthContext prelude; -Tag Scaffold removed; full gate 272/0/1/0
 
 Progress: [████░░░░░░] 40% (2 of 5 phases complete; Phase 3 planned)
 
@@ -66,10 +66,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22 — Phase 3 Wave 3 execution complete (3 atomic task commits + 1 lint-fix deviation + Wave 3 sign-off)
-Stopped at: Phase 3 Wave 3 complete -- 37/38 tasks committed (tasks through 32bfc21, lint fix e95e420); SUMMARY.md Wave 3 retrospective written; VALIDATION.md flipped wave_3_complete: true; ready for Wave 4
-Resume file: .planning/phase-3/SUMMARY.md (Wave 3 retrospective) + .planning/phase-3/PLAN.md §Wave 4 (task T3.4.1)
-Next command: execute Wave 4 -- single-commit seal removing `-Tag Scaffold` from `tests/RouteAuth/RouteAuthCoverage.Tests.ps1`, then gsd-verifier → VERIFICATION.md, then STOP per --no-transition
+Last session: 2026-04-22 — Phase 3 Wave 4 execution complete (1 atomic task commit + Wave 4 sign-off; all 38 Phase 3 tasks committed)
+Stopped at: Phase 3 Wave 4 complete -- 38/38 tasks committed (W4 single commit 1cf9c6a); SUMMARY.md Wave 4 retrospective written; VALIDATION.md flipped all_waves_complete: true; Phase 3 ready for Verify gate
+Resume file: .planning/phase-3/SUMMARY.md (Wave 4 retrospective) + .planning/phase-3/VALIDATION.md (success-criteria test map for verifier reference)
+Next command: run gsd-verifier over Phase 3 to produce .planning/phase-3/VERIFICATION.md; then STOP per --no-transition (do NOT auto-advance to Phase 4)
 
 Phase 3 planning artifacts:
 - `.planning/phase-3/RESEARCH.md` — 540 lines, 11 critical unknowns resolved (KU-a Rfc2898DeriveBytes 5-arg ctor on .NET 4.7.2; KU-b AppendHeader preserves SameSite vs Cookies.Add strips; KU-c XOR-accumulate constant-time compare; KU-d prelude insertion line 3046; KU-e 32-byte RNG; KU-f Phase 2 helpers available from runspaces; KU-g rate-limit `[hashtable]::Synchronized`; KU-h `-CreateAdmin` CLI pattern; KU-i frontend probe + window.__MAGNETO_ME; KU-j CORS byte-for-byte compare; KU-k sliding expiry) + 9 pitfalls carried forward + Deliverables Map with anchor line numbers
