@@ -45,6 +45,17 @@ Import-Module (Join-Path $modulesPath 'MAGNETO_Auth.psm1') -Force
 if ($CreateAdmin) {
     Write-Host 'MAGNETO Admin Account Creation' -ForegroundColor Cyan
     $username = Read-Host 'Admin username'
+    # Piped-stdin parents whose Console.OutputEncoding is UTF-8 emit a BOM
+    # (EF BB BF) into the child's stdin pipe. The child's Console.InputEncoding
+    # decodes those three bytes to different codepoints depending on the
+    # system code page (UTF-8 -> U+FEFF; CP437 -> U+2229/U+2557/U+2510;
+    # CP1252 -> U+00EF/U+00BB/U+00BF). Strip any of those leading from the
+    # first Read-Host so the BOM does not get embedded into the persisted
+    # username value. Interactive keyboard input is unaffected (no BOM).
+    if ($username) {
+        $bomChars = [char[]]@(0xFEFF, 0x2229, 0x2557, 0x2510, 0x00EF, 0x00BB, 0x00BF)
+        $username = $username.TrimStart($bomChars)
+    }
     if ([string]::IsNullOrWhiteSpace($username)) {
         Write-Host 'Username cannot be empty.' -ForegroundColor Red
         exit 1
@@ -3145,14 +3156,30 @@ function Handle-APIRequest {
     try {
         # Read body if present
         $body = $null
+        $bodyParseFailed = $false
         if ($request.HasEntityBody) {
             $reader = [System.IO.StreamReader]::new($request.InputStream)
             $bodyText = $reader.ReadToEnd()
             $reader.Close()
             if ($bodyText) {
-                $body = $bodyText | ConvertFrom-Json
+                try {
+                    $body = $bodyText | ConvertFrom-Json -ErrorAction Stop
+                } catch {
+                    # Malformed JSON -> 400, not 500. Auth endpoints MUST NOT
+                    # reach credential compare on bad bodies (would leak that
+                    # the handler tried to match). Flag for the switch cases.
+                    $bodyParseFailed = $true
+                    $body = $null
+                }
             }
         }
+
+        # If body parse failed AND the request is a state-changing POST/PUT/DELETE
+        # that requires a body, short-circuit to 400 before routing.
+        if ($bodyParseFailed -and $method -in 'POST','PUT','DELETE') {
+            $statusCode = 400
+            $responseData = @{ error = 'Malformed JSON body' }
+        } else {
 
         switch -Regex ($path) {
             # Health check
@@ -3162,6 +3189,164 @@ function Handle-APIRequest {
                     version = "4.0.0"
                     timestamp = (Get-Date -Format "o")
                 }
+            }
+
+            # -----------------------------------------------------------------
+            # Phase 3 T3.2.4 AUTH endpoints. All three are in the unauth
+            # allowlist (modules/MAGNETO_Auth.psm1 Get-UnauthAllowlist) so
+            # the Test-AuthContext prelude returns OK with Session=$null.
+            # -----------------------------------------------------------------
+
+            # POST /api/auth/login -- AUTH-04, AUTH-14, AUTH-08 (rate-limit),
+            # AUDIT-01/02. Returns 200 + sessionToken cookie on success;
+            # 400 on bad body; 401 on bad credentials; 429 with Retry-After
+            # on rate-lockout. NEVER logs or echoes the password.
+            "^/api/auth/login$" {
+                if ($method -ne 'POST') {
+                    $statusCode = 405; $responseData = @{ error = 'Method not allowed' }
+                    break
+                }
+                # Parse body defensively; ConvertFrom-Json already ran in the
+                # outer try{}, but a bad body made $body $null.
+                if (-not $body -or -not $body.username -or -not $body.password) {
+                    $statusCode = 400; $responseData = @{ error = 'Missing fields' }
+                    break
+                }
+                $loginUser = [string]$body.username
+                $loginPass = [string]$body.password
+
+                # Rate-limit check BEFORE credential compare to avoid
+                # timing-side-channel on locked accounts.
+                $rl = Test-RateLimit -Username $loginUser
+                if (-not $rl.Allowed) {
+                    $response.AppendHeader('Retry-After', [string]$rl.RetryAfter)
+                    $statusCode = 429
+                    $responseData = @{ error = 'Too many attempts. Please try again later.'; retryAfter = $rl.RetryAfter }
+                    $auditPath = Join-Path $DataPath 'audit-log.json'
+                    try { Write-AuditLog -Action 'login.failure' -Details @{ username = $loginUser; reason = 'rate-limited' } -AuditPath $auditPath }
+                    # INTENTIONAL-SWALLOW: audit logging must not block auth flow
+                    catch {}
+                    break
+                }
+
+                # Load auth.json. Read-JsonFile returns $null on missing/corrupt.
+                $authPath = Join-Path $DataPath 'auth.json'
+                $authData = Read-JsonFile -Path $authPath
+                if (-not $authData -or -not $authData.users) {
+                    # No admin seeded -> fail-closed. Generic message (AUTH-04).
+                    Register-LoginFailure -Username $loginUser
+                    $statusCode = 401
+                    $responseData = @{ error = 'Username or password incorrect' }
+                    break
+                }
+
+                $loginRecord = @($authData.users) | Where-Object { $_.username -eq $loginUser -and -not $_.disabled } | Select-Object -First 1
+                if (-not $loginRecord -or -not (Test-PasswordHash -PlaintextPassword $loginPass -HashRecord $loginRecord.hash)) {
+                    Register-LoginFailure -Username $loginUser
+                    $statusCode = 401
+                    $responseData = @{ error = 'Username or password incorrect' }
+                    $auditPath = Join-Path $DataPath 'audit-log.json'
+                    try { Write-AuditLog -Action 'login.failure' -Details @{ username = $loginUser; reason = 'bad-credentials' } -AuditPath $auditPath }
+                    # INTENTIONAL-SWALLOW: audit logging must not block auth flow
+                    catch {}
+                    break
+                }
+
+                # Success.
+                Reset-LoginFailures -Username $loginUser
+                $newSession = New-Session -Username $loginRecord.username -Role $loginRecord.role
+                $response.AppendHeader('Set-Cookie', "sessionToken=$($newSession.token); HttpOnly; SameSite=Strict; Max-Age=2592000; Path=/")
+
+                # Return PREVIOUS lastLogin in the body so the UI can show
+                # "Last login: <yesterday>". Then update the stored lastLogin
+                # to now and persist.
+                $previousLogin = $loginRecord.lastLogin
+                $loginRecord.lastLogin = (Get-Date).ToString('o')
+                try { Write-JsonFile -Path $authPath -Data $authData -Depth 6 | Out-Null }
+                # INTENTIONAL-SWALLOW: lastLogin persistence failure must not
+                # invalidate the successful login that already issued a cookie.
+                catch { Write-Log "auth.json lastLogin persist failed: $($_.Exception.Message)" -Level Warning }
+
+                $statusCode = 200
+                $responseData = @{
+                    username  = $loginRecord.username
+                    role      = $loginRecord.role
+                    lastLogin = $previousLogin
+                }
+                $auditPath = Join-Path $DataPath 'audit-log.json'
+                try { Write-AuditLog -Action 'login.success' -Details @{ username = $loginRecord.username; role = $loginRecord.role } -AuditPath $auditPath }
+                # INTENTIONAL-SWALLOW: audit logging must not block auth flow
+                catch {}
+                break
+            }
+
+            # POST /api/auth/logout -- SESS-05, AUDIT-03. Clears the session
+            # server-side and emits a cookie-clearing Set-Cookie. Accepts
+            # callers with or without a valid cookie (idempotent). This
+            # endpoint is in the unauth allowlist so the prelude does NOT
+            # populate $script:CurrentSession -- we must look the session
+            # up from the request cookie ourselves.
+            "^/api/auth/logout$" {
+                if ($method -ne 'POST') {
+                    $statusCode = 405; $responseData = @{ error = 'Method not allowed' }
+                    break
+                }
+                $logoutCookieHeader = $request.Headers['Cookie']
+                $logoutSession = $null
+                if ($logoutCookieHeader) {
+                    $logoutToken = Get-CookieValue -Header $logoutCookieHeader -Name 'sessionToken'
+                    if ($logoutToken) {
+                        $logoutSession = Get-SessionByToken -Token $logoutToken
+                    }
+                }
+                if ($logoutSession) {
+                    $logoutUser = $logoutSession.username
+                    Remove-Session -Token $logoutSession.token
+                    $auditPath = Join-Path $DataPath 'audit-log.json'
+                    try { Write-AuditLog -Action 'logout.explicit' -Details @{ username = $logoutUser } -AuditPath $auditPath }
+                    # INTENTIONAL-SWALLOW: audit logging must not block logout
+                    catch {}
+                }
+                # Always clear the cookie, even if caller had no valid session.
+                $response.AppendHeader('Set-Cookie', 'sessionToken=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/')
+                $statusCode = 200
+                $responseData = @{ ok = $true }
+                break
+            }
+
+            # GET /api/auth/me -- AUTH-14 (frontend probe for topbar username
+            # + lastLogin). Returns 200 with current user info if the caller
+            # presented a valid sessionToken cookie; 401 otherwise. The
+            # allowlist admits unauth callers so the prelude does NOT populate
+            # $script:CurrentSession -- we must look it up from the cookie.
+            "^/api/auth/me$" {
+                if ($method -ne 'GET') {
+                    $statusCode = 405; $responseData = @{ error = 'Method not allowed' }
+                    break
+                }
+                $meCookieHeader = $request.Headers['Cookie']
+                $meSession = $null
+                if ($meCookieHeader) {
+                    $meToken = Get-CookieValue -Header $meCookieHeader -Name 'sessionToken'
+                    if ($meToken) { $meSession = Get-SessionByToken -Token $meToken }
+                }
+                if ($meSession) {
+                    $authPath = Join-Path $DataPath 'auth.json'
+                    $authData = Read-JsonFile -Path $authPath
+                    $meRec = if ($authData -and $authData.users) {
+                        @($authData.users) | Where-Object { $_.username -eq $meSession.username } | Select-Object -First 1
+                    } else { $null }
+                    $statusCode = 200
+                    $responseData = @{
+                        username  = $meSession.username
+                        role      = $meSession.role
+                        lastLogin = if ($meRec) { $meRec.lastLogin } else { $null }
+                    }
+                } else {
+                    $statusCode = 401
+                    $responseData = @{ error = 'Not logged in' }
+                }
+                break
             }
 
             # Status endpoint
@@ -4829,6 +5014,7 @@ function Handle-APIRequest {
                 $responseData = @{ error = "Endpoint not found" }
             }
         }
+        } # end else ($bodyParseFailed guard)
     }
     catch {
         $statusCode = 500
@@ -4890,77 +5076,17 @@ function Handle-StaticFile {
     }
 }
 
-function Handle-WebSocket {
-    param(
-        [System.Net.HttpListenerContext]$Context
-    )
-
-    try {
-        $wsContext = $Context.AcceptWebSocketAsync([NullString]::Value).Result
-        $ws = $wsContext.WebSocket
-        $clientId = [Guid]::NewGuid().ToString()
-
-        $script:WebSocketClients.TryAdd($clientId, $ws) | Out-Null
-        Write-Log "WebSocket client connected: $clientId" -Level Success
-
-        # Send welcome message
-        $welcome = @{
-            type = "connected"
-            clientId = $clientId
-            message = "Connected to MAGNETO V4"
-        } | ConvertTo-Json -Compress
-        $welcomeBytes = [System.Text.Encoding]::UTF8.GetBytes($welcome)
-        $ws.SendAsync([System.ArraySegment[byte]]::new($welcomeBytes), [System.Net.WebSockets.WebSocketMessageType]::Text, $true, [System.Threading.CancellationToken]::None).Wait()
-
-        # Message receive loop
-        $buffer = [byte[]]::new(4096)
-        while ($ws.State -eq [System.Net.WebSockets.WebSocketState]::Open -and $script:ServerRunning) {
-            try {
-                $segment = [System.ArraySegment[byte]]::new($buffer)
-                $result = $ws.ReceiveAsync($segment, [System.Threading.CancellationToken]::None).Result
-
-                if ($result.MessageType -eq [System.Net.WebSockets.WebSocketMessageType]::Close) {
-                    break
-                }
-
-                if ($result.MessageType -eq [System.Net.WebSockets.WebSocketMessageType]::Text) {
-                    $message = [System.Text.Encoding]::UTF8.GetString($buffer, 0, $result.Count)
-                    $data = $message | ConvertFrom-Json
-
-                    # Handle commands
-                    if ($data.type -eq "command") {
-                        switch ($data.command) {
-                            "stop" {
-                                $script:CurrentExecutionStop.stop = $true
-                                Stop-Execution
-                            }
-                            "ping" {
-                                $pong = @{ type = "pong"; timestamp = (Get-Date -Format "o") } | ConvertTo-Json -Compress
-                                $pongBytes = [System.Text.Encoding]::UTF8.GetBytes($pong)
-                                $ws.SendAsync([System.ArraySegment[byte]]::new($pongBytes), [System.Net.WebSockets.WebSocketMessageType]::Text, $true, [System.Threading.CancellationToken]::None).Wait()
-                            }
-                        }
-                    }
-                }
-            }
-            catch {
-                if ($ws.State -ne [System.Net.WebSockets.WebSocketState]::Open) {
-                    break
-                }
-            }
-        }
-    }
-    catch {
-        Write-Log "WebSocket error: $($_.Exception.Message)" -Level Error
-    }
-    finally {
-        if ($clientId) {
-            $removed = $null
-            $script:WebSocketClients.TryRemove($clientId, [ref]$removed) | Out-Null
-            Write-Log "WebSocket client disconnected: $clientId" -Level Warning
-        }
-    }
-}
+# ---------------------------------------------------------------------------
+# NOTE: The former Handle-WebSocket function (which accepted the WS upgrade
+# without an Origin + session gate) was REMOVED as part of Phase 3 T3.2.4
+# (CORS-05, CORS-06, SC 19). The WebSocket upgrade is now handled inline in
+# the main listener loop below: the Origin allowlist check and sessionToken
+# cookie validation run SYNCHRONOUSLY on the main thread BEFORE the
+# runspace-scoped socket accept call. Do NOT re-introduce a standalone
+# handler function without preserving that gate ordering -- CWE-1385
+# (browsers do not enforce CORS on WS upgrades) requires server-side
+# rejection before the socket is promoted.
+# ---------------------------------------------------------------------------
 
 # Initialize execution engine with broadcast callback
 $broadcastScript = {
@@ -5115,6 +5241,37 @@ while ($script:ServerRunning) {
 
         # Route request
         if ($context.Request.IsWebSocketRequest) {
+            # Phase 3 T3.2.4 CORS-05 + CORS-06: WebSocket Origin + session
+            # cookie gate. Must run SYNCHRONOUSLY on the main thread BEFORE
+            # the socket-accept call (a socket upgrade cannot be un-done
+            # after it completes). Reject with 403 and a plain-text body
+            # so the browser's readyState goes CLOSED cleanly.
+            $wsOrigin = $context.Request.Headers['Origin']
+            $wsCookieHeader = $context.Request.Headers['Cookie']
+            $wsOriginOk = $false
+            try { $wsOriginOk = Test-OriginAllowed -Origin $wsOrigin -Port $Port } catch { $wsOriginOk = $false }
+            $wsSession = $null
+            if ($wsCookieHeader) {
+                $wsToken = Get-CookieValue -Header $wsCookieHeader -Name 'sessionToken'
+                if ($wsToken) { $wsSession = Get-SessionByToken -Token $wsToken }
+            }
+            if (-not $wsOriginOk -or $null -eq $wsSession) {
+                try {
+                    $rejectBody = [System.Text.Encoding]::UTF8.GetBytes('Forbidden: WebSocket requires allowlisted Origin + valid session cookie')
+                    $context.Response.StatusCode = 403
+                    $context.Response.ContentType = 'text/plain'
+                    $context.Response.ContentLength64 = $rejectBody.Length
+                    $context.Response.OutputStream.Write($rejectBody, 0, $rejectBody.Length)
+                    $context.Response.Close()
+                } catch {
+                    # INTENTIONAL-SWALLOW: if the response stream was already
+                    # torn down by an overeager client disconnect, we only
+                    # care that the upgrade never completed.
+                }
+                Write-Log "WebSocket rejected: origin=$wsOrigin cookieOk=$($null -ne $wsSession)" -Level Warning
+                continue
+            }
+
             # Opportunistic sweep: dispose any WS runspaces whose receive loop ended
             $null = Invoke-RunspaceReaper -Registry $script:WebSocketRunspaces -Label 'websocket'
 

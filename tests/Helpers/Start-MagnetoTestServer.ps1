@@ -53,7 +53,8 @@ function Start-MagnetoTestServer {
         '-File', $webService,
         '-Port', $Port.ToString(),
         '-DataPath', $DataDir,
-        '-WebRoot', $WebRoot
+        '-WebRoot', $WebRoot,
+        '-NoBrowser'
     )
     $quoted = foreach ($a in $argv) {
         if ($a -match '\s') { '"' + ($a -replace '"','\"') + '"' } else { $a }

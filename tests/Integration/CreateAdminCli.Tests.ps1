@@ -65,6 +65,13 @@ Describe 'MagnetoWebService.ps1 -CreateAdmin (AUTH-01 CLI bootstrap)' -Tag 'Phas
             $proc = [System.Diagnostics.Process]::Start($psi)
             # Feed two lines: username + password, each followed by CRLF
             # (PS Read-Host treats CR as EOL; LF alone can hang).
+            # Note: on systems where the parent Console.OutputEncoding is UTF-8,
+            # accessing $proc.StandardInput constructs a StreamWriter that
+            # emits a UTF-8 BOM (EF BB BF) into the child's stdin pipe. PS 5.1
+            # on .NET Framework lacks ProcessStartInfo.StandardInputEncoding
+            # (.NET Core 2.1+ only), so we cannot override this. The server's
+            # -CreateAdmin handler strips the leading BOM characters from the
+            # first Read-Host to tolerate this.
             $proc.StandardInput.WriteLine($Username)
             $proc.StandardInput.WriteLine($Password)
             $proc.StandardInput.Close()
