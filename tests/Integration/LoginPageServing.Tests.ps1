@@ -28,7 +28,9 @@ Describe 'GET /login.html + POST /api/auth/login (AUTH-04 SC 21)' -Tag 'Phase3',
             users = @(@{ username='admin'; role='admin'; hash=$adminHash; disabled=$false; lastLogin=$null; mustChangePassword=$false })
         } -Depth 6 | Out-Null
 
-        $script:Server  = Start-MagnetoTestServer -DataDir $script:DataDir
+        # Use the real web/ directory so /login.html (T3.3.1) is served.
+        $script:WebRoot = Join-Path $RepoRoot 'web'
+        $script:Server  = Start-MagnetoTestServer -DataDir $script:DataDir -WebRoot $script:WebRoot
         $script:BaseUrl = $script:Server.BaseUrl
 
         function Invoke-LoginAttempt {
@@ -87,8 +89,25 @@ Describe 'GET /login.html + POST /api/auth/login (AUTH-04 SC 21)' -Tag 'Phase3',
         }
     }
 
-    It 'GET /login.html without any cookie returns 200 + HTML body with <form action="/api/auth/login">' -Skip:$true {
-        Set-ItResult -Skipped -Because 'login.html shipping is T3.3.1 (Wave 3 frontend)'
+    It 'GET /login.html without any cookie returns 200 + HTML body with <form action="/api/auth/login">' {
+        # Fresh HttpWebRequest with no cookie jar -- static file served by
+        # Handle-StaticFile without transiting the auth prelude.
+        $req = [System.Net.HttpWebRequest]::Create("$($script:BaseUrl)/login.html")
+        $req.Method = 'GET'
+        $req.Timeout = 10000
+        $resp = $req.GetResponse()
+        try {
+            [int]$resp.StatusCode | Should -Be 200
+            $rd = New-Object System.IO.StreamReader($resp.GetResponseStream())
+            $html = $rd.ReadToEnd()
+            $rd.Close()
+        } finally { $resp.Close() }
+
+        $html | Should -Match '<form[^>]*id="loginForm"'
+        $html | Should -Match 'action="/api/auth/login"'
+        # Username + password input fields must be named per the server's body parse.
+        $html | Should -Match 'name="username"'
+        $html | Should -Match 'name="password"'
     }
 
     It 'POST /api/auth/login with nonexistent username returns 401 + body "Username or password incorrect"' {
@@ -135,7 +154,26 @@ Describe 'GET /login.html + POST /api/auth/login (AUTH-04 SC 21)' -Tag 'Phase3',
         $r.StatusCode | Should -BeLessThan 500
     }
 
-    It 'GET /login.html?expired=1 renders the "Session expired" banner (query-string flag triggers visual)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'login.html shipping is T3.3.1 (Wave 3 frontend)'
+    It 'GET /login.html?expired=1 renders the "Session expired" banner (query-string flag triggers visual)' {
+        # Query-string is consumed by inline JS, not server-side -- so the
+        # HTML body always ships with the banner element present (hidden by
+        # default). The JS reads URLSearchParams('?expired=1') and unsets the
+        # 'hidden' attribute. Assert the banner element + the ?expired=1
+        # read are both present; actual visual render is a manual smoke case
+        # (Phase3.Smoke.md), since headless HTML-only inspection can't observe
+        # runtime DOM mutation from query-string.
+        $req = [System.Net.HttpWebRequest]::Create("$($script:BaseUrl)/login.html?expired=1")
+        $req.Method = 'GET'
+        $req.Timeout = 10000
+        $resp = $req.GetResponse()
+        try {
+            [int]$resp.StatusCode | Should -Be 200
+            $rd = New-Object System.IO.StreamReader($resp.GetResponseStream())
+            $html = $rd.ReadToEnd()
+            $rd.Close()
+        } finally { $resp.Close() }
+
+        $html | Should -Match 'id="expired-banner"'
+        $html | Should -Match "get\('expired'\)"
     }
 }

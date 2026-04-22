@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MAGNETO - Login</title>
+    <style>
+        :root {
+            --primary: #00ff41;
+            --primary-dim: #00cc33;
+            --primary-glow: rgba(0, 255, 65, 0.5);
+            --bg: #000;
+            --surface: #0a0a0a;
+            --surface-raised: rgba(0, 20, 0, 0.85);
+            --border: rgba(0, 255, 65, 0.3);
+            --text: #00ff41;
+            --text-dim: #00aa55;
+            --warning: #ffb000;
+            --error: #ff3b3b;
+            --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            background-image:
+                radial-gradient(ellipse at center, rgba(0, 40, 0, 0.4) 0%, transparent 70%),
+                linear-gradient(180deg, #000 0%, #030803 100%);
+            color: var(--text);
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .login-card {
+            background: var(--surface-raised);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 40px;
+            width: 360px;
+            max-width: 92vw;
+            box-shadow: 0 0 40px rgba(0, 255, 65, 0.15), inset 0 0 20px rgba(0, 30, 0, 0.3);
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 6px;
+            text-align: center;
+            margin-bottom: 4px;
+            text-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .version {
+            color: var(--text-dim);
+            font-size: 12px;
+            margin-left: 6px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 11px;
+            letter-spacing: 2px;
+            margin-bottom: 28px;
+            text-transform: uppercase;
+        }
+
+        .field {
+            margin-bottom: 16px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 11px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            border-radius: 2px;
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .field input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        .submit {
+            width: 100%;
+            padding: 11px;
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .submit:hover:not(:disabled) {
+            background: rgba(0, 255, 65, 0.1);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .banner {
+            padding: 10px 12px;
+            margin-bottom: 18px;
+            font-size: 12px;
+            border-radius: 2px;
+            border: 1px solid;
+            line-height: 1.4;
+        }
+
+        .banner-error {
+            border-color: var(--error);
+            background: rgba(255, 59, 59, 0.08);
+            color: var(--error);
+        }
+
+        .banner-warning {
+            border-color: var(--warning);
+            background: rgba(255, 176, 0, 0.08);
+            color: var(--warning);
+        }
+
+        .footnote {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 10px;
+            letter-spacing: 1px;
+            margin-top: 24px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo">MAGNETO<span class="version">V4</span></div>
+        <div class="subtitle">Authorized Personnel Only</div>
+
+        <div id="expired-banner" class="banner banner-warning" hidden>Session expired -- please log in again.</div>
+        <div id="error-banner" class="banner banner-error" hidden>Username or password incorrect</div>
+
+        <form id="loginForm" action="/api/auth/login" method="POST" autocomplete="off">
+            <div class="field">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="submit" id="submitBtn">Authenticate</button>
+        </form>
+
+        <div class="footnote">Living Off The Land Attack Simulator</div>
+    </div>
+
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get('expired') === '1') {
+                document.getElementById('expired-banner').hidden = false;
+            }
+
+            var form = document.getElementById('loginForm');
+            var errorBanner = document.getElementById('error-banner');
+            var submitBtn = document.getElementById('submitBtn');
+
+            function showError(message) {
+                errorBanner.textContent = message;
+                errorBanner.hidden = false;
+            }
+
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                errorBanner.hidden = true;
+                submitBtn.disabled = true;
+
+                var username = document.getElementById('username').value;
+                var password = document.getElementById('password').value;
+
+                try {
+                    var r = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ username: username, password: password })
+                    });
+
+                    if (r.status === 200) {
+                        try {
+                            var body = await r.json();
+                            if (body && body.lastLogin !== undefined) {
+                                console.log('[MAGNETO] Last login:', body.lastLogin);
+                            }
+                        } catch (_) { /* non-JSON body tolerated */ }
+                        window.location.replace('/');
+                        return;
+                    }
+
+                    if (r.status === 429) {
+                        var retryAfter = r.headers.get('Retry-After');
+                        var msg = 'Too many attempts. Please try again later.';
+                        if (retryAfter) {
+                            msg += ' (retry in ' + retryAfter + 's)';
+                        }
+                        showError(msg);
+                        submitBtn.disabled = false;
+                        return;
+                    }
+
+                    // 401, 400, 403, 500 -- all collapse to the same generic string.
+                    // Do not leak which field was wrong or whether the user exists.
+                    showError('Username or password incorrect');
+                    submitBtn.disabled = false;
+                } catch (err) {
+                    showError('Network error -- please retry');
+                    submitBtn.disabled = false;
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
