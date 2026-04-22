@@ -4,9 +4,12 @@ slug: auth-prelude-cors-websocket-hardening
 status: approved
 nyquist_compliant: true
 wave_0_complete: true
+wave_1_complete: true
 created: 2026-04-22
 wave_0_completed_at: 2026-04-22
+wave_1_completed_at: 2026-04-22
 wave_0_summary: .planning/phase-3/SUMMARY.md
+wave_1_summary: .planning/phase-3/SUMMARY.md
 ---
 
 # Phase 3 — Validation Strategy

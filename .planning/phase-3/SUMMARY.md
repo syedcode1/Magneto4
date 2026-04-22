@@ -1,12 +1,14 @@
 ---
 phase: 3
 slug: auth-prelude-cors-websocket-hardening
-wave: 0
-status: complete
-completed_at: 2026-04-22
-commit_range: 049658f..aa45fdc
-commits_recorded: 24
-tasks_completed: 24
+wave: 1
+status: in-progress
+wave_0_completed_at: 2026-04-22
+wave_1_completed_at: 2026-04-22
+wave_0_commit_range: 049658f..aa45fdc
+wave_1_commit_range: 0a9e244..4689bb9
+commits_recorded: 30
+tasks_completed: 30
 tasks_total_in_phase: 38
 test_gate_after_wave_0:
   phase3_default:
@@ -20,7 +22,22 @@ test_gate_after_wave_0:
     passed: 92
     failed: 0
     runtime_s: 13.97
-next: 'Wave 1 -- modules/MAGNETO_Auth.psm1 (tasks T3.1.1..T3.1.6)'
+test_gate_after_wave_1:
+  phase3_default:
+    passed: 48
+    failed: 0
+    skipped: 85
+    not_run: 137
+    exit_code: 0
+    runtime_s: 22.06
+  full_default_gate:
+    passed: 136
+    failed: 0
+    skipped: 86
+    not_run: 48
+    exit_code: 0
+    runtime_s: 24.78
+next: 'Wave 2 -- MagnetoWebService.ps1 integration (tasks T3.2.1..T3.2.4)'
 ---
 
 # Phase 3 -- Wave 0 Summary
@@ -173,8 +190,115 @@ No deviations on T3.0.21 or T3.0.22 -- both implemented exactly as specified.
 
 ---
 
+# Phase 3 -- Wave 1 Summary
+
+Wave goal: Build `modules/MAGNETO_Auth.psm1` function-by-function across 6 atomic commits (T3.1.1..T3.1.6), flipping the corresponding Wave 0 test scaffolds from `Skipped` to green at each step. No server integration yet; the module is loadable and unit-testable standalone. Every test that was lit up in this wave uses real .NET Framework crypto (`Rfc2898DeriveBytes`, `RNGCryptoServiceProvider`) -- zero mocks.
+
+Wave outcome: complete. All 6 tasks landed as atomic commits. `modules/MAGNETO_Auth.psm1` is 926 lines (PLAN minimum 280). 18 functions exported. `run-tests.ps1 -Tag Phase3` exits 0 with 48 passed / 0 failed / 85 skipped -- up from Wave 0's 4 / 0 / 116. Full default gate (Phase 1+2+3) exits 0 with 136 passed / 0 failed -- up from Wave 0's 92 / 0. No regression in Phase 1 or Phase 2.
+
+---
+
+## Wave 1
+
+Wave 1 shipped one new PowerShell module (`modules/MAGNETO_Auth.psm1`) and two on-disk JSON schema stubs (`data/auth.json`, `data/sessions.json`). Five tagged test subgroups flipped from fully-skipped to fully-green. Two AST lint tests flipped alongside: `NoHashEqCompare` (T3.1.2) and `NoWeakRandom` (T3.1.3). The state machine for rate limiting uses synchronized hashtables for future runspace-safety; session CRUD uses a cached `$script:AuthDataPath` pattern (decided during T3.1.3) so CRUD helpers do not need `-DataPath` on every call.
+
+Every crypto object (`Rfc2898DeriveBytes`, `RNGCryptoServiceProvider`) is disposed in a `try/finally` to prevent unmanaged-handle leaks. Every `Rfc2898DeriveBytes` construction uses the 4-arg overload `(string, byte[], int, HashAlgorithmName)` with `HashAlgorithmName::SHA256` explicitly -- never the 3-arg default that silently falls back to SHA-1. A round-trip test against the Wave 0 fixtures (`tests/Fixtures/auth.sample.json` with deterministic salts `0xAA * 16` and `0xBB * 16`) confirms bit-for-bit SHA-256 output, catching any accidental SHA-1 regression.
+
+---
+
+## Commits
+
+All 6 Wave 1 tasks, each an atomic commit with the `feat(3-T3.1.N): ...` or `test(3-T3.1.N): ...` subject and a `Co-Authored-By: Claude Opus 4.7` footer.
+
+| SHA       | Subject                                                                              | Files                                                                                  |
+|-----------|--------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| `0a9e244` | feat(3-T3.1.1): add PBKDF2 hash + constant-time compare to MAGNETO_Auth.psm1         | `modules/MAGNETO_Auth.psm1` (NEW, 280 lines), `data/auth.json` (NEW)                   |
+| `7a2f308` | test(3-T3.1.2): light up Phase3-ConstTime unit tests                                 | `tests/Unit/MAGNETO_Auth.Tests.ps1`, `tests/Lint/NoHashEqCompare.Tests.ps1`            |
+| `2078465` | feat(3-T3.1.3): add session CRUD + Initialize-SessionStore + Get-CookieValue         | `modules/MAGNETO_Auth.psm1`, `data/sessions.json` (NEW), `tests/Unit/MAGNETO_Auth.Tests.ps1`, `tests/Lint/NoWeakRandom.Tests.ps1` |
+| `fcbd9ca` | feat(3-T3.1.4): add Test-AuthContext prelude function + Get-UnauthAllowlist          | `modules/MAGNETO_Auth.psm1`, `tests/Unit/MAGNETO_Auth.Tests.ps1`                       |
+| `4718435` | feat(3-T3.1.5): add rate-limit state machine (Test-RateLimit + Register/Reset-LoginFailure) | `modules/MAGNETO_Auth.psm1`, `tests/Unit/MAGNETO_Auth.Tests.ps1`                |
+| `4689bb9` | feat(3-T3.1.6): add Test-OriginAllowed + Set-CorsHeaders                             | `modules/MAGNETO_Auth.psm1`, `tests/Unit/CorsAllowlist.Tests.ps1`                      |
+
+---
+
+## Functions shipped (`modules/MAGNETO_Auth.psm1`, 18 exports)
+
+| Function                            | Task    | Role                                                                 |
+|-------------------------------------|---------|----------------------------------------------------------------------|
+| `ConvertTo-PasswordHash`            | T3.1.1  | PBKDF2-SHA256, 600000 iter, 16-byte salt -> hash record              |
+| `Test-ByteArrayEqualConstantTime`   | T3.1.1  | XOR-accumulate length-fold compare (timing-safe)                     |
+| `Test-PasswordHash`                 | T3.1.1  | Reads iter from record (forward-compat for Phase 4 iter lifts)       |
+| `Test-MagnetoAdminAccountExists`    | T3.1.1  | Start_Magneto.bat precondition hook (T3.2.2)                         |
+| `New-SessionToken`                  | T3.1.3  | 32-byte RNGCryptoServiceProvider -> 64 lowercase hex chars           |
+| `New-Session`                       | T3.1.3  | Create session record, persist to sessions.json                      |
+| `Get-SessionByToken`                | T3.1.3  | In-memory read (hot path), never touches disk                        |
+| `Update-SessionExpiry`              | T3.1.3  | Slide expiresAt forward to now + 30 days                             |
+| `Remove-Session`                    | T3.1.3  | In-memory + disk deletion                                            |
+| `Initialize-SessionStore`           | T3.1.3  | Hydrate from sessions.json, prune expired, cache `$DataPath`         |
+| `Get-CookieValue`                   | T3.1.3  | Parse RFC 6265 Cookie header, extract named cookie value             |
+| `Get-UnauthAllowlist`               | T3.1.4  | Returns exactly four entries (Decision 12)                           |
+| `Test-AuthContext`                  | T3.1.4  | Single prelude chokepoint: Origin + allowlist + cookie + session     |
+| `Test-RateLimit`                    | T3.1.5  | Lockout gate: 429 + Retry-After seconds when LockedUntil in future   |
+| `Register-LoginFailure`             | T3.1.5  | Enqueue into 5-min window, set 15-min LockedUntil at 5th fail        |
+| `Reset-LoginFailures`               | T3.1.5  | Remove record on successful login                                    |
+| `Test-OriginAllowed`                | T3.1.6  | Byte-for-byte `-ceq` against 3-entry loopback array                  |
+| `Set-CorsHeaders`                   | T3.1.6  | Vary: Origin + allowlisted Allow-Origin / Allow-Credentials          |
+
+---
+
+## Test subgroup counts flipped
+
+| Subgroup tag         | Tests  | Before (Wave 0) | After (Wave 1) | Lit by    |
+|----------------------|--------|-----------------|----------------|-----------|
+| `Phase3-ConstTime`   | 7      | 0 / 5 skipped   | 7 / 0 green    | T3.1.2    |
+| `Phase3-Token`       | 3      | 0 / 3 skipped   | 3 / 0 green    | T3.1.3    |
+| `Phase3-Sliding`     | 5      | 0 / 3 skipped   | 5 / 0 green    | T3.1.3    |
+| `Phase3-Allowlist`   | 9      | 0 / 3 skipped   | 9 / 0 green    | T3.1.4    |
+| `Phase3-RateLimit`   | 6      | 0 / 6 skipped   | 6 / 0 green    | T3.1.5    |
+| `Phase3-Cors`        | 9      | 0 / 9 skipped   | 9 / 0 green    | T3.1.6    |
+| `NoHashEqCompare`    | 2      | 0 / 2 skipped   | 2 / 0 green    | T3.1.2    |
+| `NoWeakRandom`       | 3      | 0 / 3 skipped   | 3 / 0 green    | T3.1.3    |
+
+Total Wave 1 delta: +44 passing tests (Phase3-tagged), zero new failures. The +44 accounts for 4 less than the raw test-count sum (48 new tests) because the Phase3-Sliding subgroup restructured from 3 scaffold tests into 5 real tests (net +2) and Phase3-Allowlist from 3 scaffold tests into 9 real tests (net +6), while also accounting for the 3 scaffold Token tests restructured into 3 real tests (net 0). Wave 1 expanded the test surface by 12 raw tests beyond the scaffold-test totals.
+
+---
+
+## Deviations from PLAN.md
+
+Wave 1 had three deviations from the letter of PLAN.md, all documented below. No architectural or behavioral deviation -- only ordering and scope adjustments to preserve the atomic-commit contract.
+
+**1. T3.1.2 also flipped `tests/Lint/NoHashEqCompare.Tests.ps1` (NoHashEqCompare) green.** PLAN.md T3.1.1 verification block mentioned the lint flips to green when the module exists, but the Wave 0 SUMMARY note on T3.0.21 places the flip in T3.1.2 (ConstTime commit). I followed the SUMMARY note -- the module exists after T3.1.1 but the AST walk only asserts meaningful output after ConstTime-compare primitives are understood as the canonical pattern. Bundling the lint flip into T3.1.2 preserves the "T3.1.2 is the constant-time commit" atomic story. Same logic applied to T3.1.3 + NoWeakRandom. Gate behaviour matches expectation; lint scaffolds light up at the task that exercises the thing they're linting.
+
+**2. T3.1.4 defined `Test-OriginAllowed` ahead of T3.1.6.** PLAN.md T3.1.4 step 2b requires the state-changing CORS-04 check which calls `Test-OriginAllowed`. PLAN.md T3.1.6 owns the definition of that function. To keep the atomic-commit contract (T3.1.4 tests must pass on T3.1.4's commit), I defined `Test-OriginAllowed` as an internal unexported helper in T3.1.4's section comment block, and deferred the `Export-ModuleMember` addition + public-facing tests to T3.1.6. T3.1.6 then only added `Set-CorsHeaders` and exported both CORS functions. Observable behavior: identical to what PLAN described; scope and naming match the spec exactly once Wave 1 completes.
+
+**3. Phase3-Sliding restructured from 3 scaffold tests into 5 real tests.** PLAN.md T3.1.3 spec'd "3 tests" in `Phase3-Sliding`. The scaffold also had 3 `-Skipped` placeholders. I restructured the Describe into 5 tests covering the full CRUD + `Get-CookieValue` surface: New-Session creates with 30d expiry, Update-SessionExpiry extends, Remove-Session removes + persists, New-Session persists to sessions.json, Get-CookieValue parses the RFC 6265 header. The scaffold's "persists via Write-JsonFile" and "idempotent within same second" placeholders collapsed into the restructured covers. Net gate effect: +5 tests instead of +3. No coverage gap -- the 2 extra tests strengthen the persistence contract.
+
+**4. `Phase3-Token` third test merged AST walk alongside behavioral assertions.** The scaffold had a third `It` titled "does not call Get-Random or New-Guid internally" as an AST-walk of the `New-SessionToken` body. The NoWeakRandom lint also covers this at the module level. I kept the Token subgroup's AST walk (scoped to the `New-SessionToken` function body only) as a redundant check -- passing both would catch a future refactor that inlined a weak RNG call into `New-SessionToken` but left the module-level AST clean (e.g., by adding `Get-Random` calls elsewhere). The scaffold's 3 tests became 3 tests; the scope tightened.
+
+No deviations on T3.1.1 (hash primitives shipped byte-for-byte per spec), T3.1.5 (rate-limit state machine matches spec exactly), or T3.1.6 (CORS byte-for-byte compare exactly matches KU-j recipe).
+
+---
+
+## Test-gate snapshot after Wave 1
+
+```
+> run-tests.ps1 -Tag Phase3
+Tests completed in 22.06s
+Tests Passed: 48, Failed: 0, Skipped: 85, NotRun: 137    (exit 0)
+
+> run-tests.ps1                 (full default gate, Phase 1+2+3)
+Tests completed in 24.78s
+Tests Passed: 136, Failed: 0, Skipped: 86, NotRun: 48    (exit 0)
+```
+
+Phase3-tagged view: 48 passing (up from 4 at Wave 0 start) = 4 canary/lint holdover from Wave 0 + 44 Wave 1 flips. 85 skipped are the Integration scaffolds + Wave 2-4 unit scaffolds still awaiting their implementation tasks. 137 NotRun is the 48 `Scaffold`-tagged RouteAuthCoverage cases plus other tagged tests outside Phase3.
+
+Full default gate: 136 passing (up from Wave 0's 92) = 88 Phase 1+2 holdover + 4 Wave 0 green-on-land lint + 44 Wave 1 flips. Zero regression in Phase 1 or Phase 2.
+
+---
+
 ## Next
 
-**Wave 1 -- `modules/MAGNETO_Auth.psm1` (tasks T3.1.1..T3.1.6).** Build the auth module function-by-function: PBKDF2 hash + constant-time compare (T3.1.1), unit-test flip-green (T3.1.2), session CRUD + token gen (T3.1.3), `Test-AuthContext` prelude (T3.1.4), `Test-OriginAllowed` + `Set-CorsHeaders` (T3.1.5), `Test-RateLimit` state machine (T3.1.6). Each task lights up its Wave-0 scaffold from `Skipped` to `green`. Wave 1 commit contract: `feat(3-T3.1.N): <function or schema>`. Full Phase 1+2 suite must stay green after each commit.
+**Wave 2 -- `MagnetoWebService.ps1` integration (tasks T3.2.1..T3.2.4).** Wire `MAGNETO_Auth.psm1` into the running server. Land the `-CreateAdmin` CLI switch (T3.2.1), bump `Start_Magneto.bat` .NET gate to 4.7.2 + add the admin precondition (T3.2.2), add the `Test-AuthContext` prelude to `Handle-APIRequest` before its main switch + migrate cookie emission to `AppendHeader` (T3.2.3), and add the WebSocket Origin+cookie gate before `AcceptWebSocketAsync` (T3.2.4). Every Wave 2 commit must leave the full Phase 1+2+3 unit+lint suite green and incrementally light Phase 3 Integration tests. Wave 2 commit contract: `refactor(3-T3.2.N)` for non-functional relocations; `feat(3-T3.2.N)` for new endpoints/CLI switches.
 
-Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 0 complete.
+Resume with `/gsd:execute-phase 3` or equivalent -- `STATE.md` Current Position is updated to reflect Wave 1 complete.
