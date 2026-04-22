@@ -52,7 +52,7 @@ Each row corresponds to one of the 27 Success Criteria from `ROADMAP.md §Phase 
 | 4 | AUTH-01 | No `/setup` or `/api/setup` route in source | lint (grep) | `run-tests.ps1 -Path tests\Lint\NoSetupRoute.Tests.ps1` | `tests/Lint/NoSetupRoute.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 5 | AUTH-06 | `Test-AuthContext` call precedes first `SwitchStatementAst` inside `Handle-APIRequest` | lint (AST) | `run-tests.ps1 -Path tests\Lint\PreludeBeforeSwitch.Tests.ps1` | `tests/Lint/PreludeBeforeSwitch.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 6 | AUTH-05 | `/api/*` returns 401 without cookie — route-coverage test flipped green | integration | `run-tests.ps1 -Path tests\RouteAuth\RouteAuthCoverage.Tests.ps1` | `tests/RouteAuth/RouteAuthCoverage.Tests.ps1` (Phase 1 scaffold, modified) | ✅ EXISTS | ⬜ pending |
-| 7 | AUTH-05 | Allowlist is exactly `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`, `/login.html`, `/ws` (5 entries) | unit | `run-tests.ps1 -Tag Phase3-Allowlist` | `tests/Unit/MAGNETO_Auth.Tests.ps1` | ❌ W0 | ⬜ pending |
+| 7 | AUTH-05 | Allowlist is exactly `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/status`, static files (per AUTH-05 / ROADMAP SC-7). `/login.html` and `/ws` do NOT appear in the allowlist because they are dispatched outside `Handle-APIRequest` (static-file handler and WS handler respectively) and never transit the prelude. | unit | `run-tests.ps1 -Tag Phase3-Allowlist` | `tests/Unit/MAGNETO_Auth.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 8 | AUTH-07 | Admin-only endpoints return 403 when called with operator cookie | integration | `run-tests.ps1 -Path tests\Integration\AdminOnlyEndpoints.Tests.ps1` | `tests/Integration/AdminOnlyEndpoints.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 9 | SESS-01 | All `Set-Cookie` emits go through `AppendHeader`; zero `.Cookies.Add(` in source | lint (grep) | `run-tests.ps1 -Path tests\Lint\NoDirectCookiesAdd.Tests.ps1` | `tests/Lint/NoDirectCookiesAdd.Tests.ps1` | ❌ W0 | ⬜ pending |
 | 10 | SESS-02 | `New-SessionToken` returns 64 hex chars from 32-byte `RNGCryptoServiceProvider`; no `New-Guid`/`Get-Random` reachable from auth | unit + lint | `run-tests.ps1 -Tag Phase3-Token` **and** `run-tests.ps1 -Path tests\Lint\NoWeakRandom.Tests.ps1` | `tests/Unit/MAGNETO_Auth.Tests.ps1` + `tests/Lint/NoWeakRandom.Tests.ps1` | ❌ W0 | ⬜ pending |
@@ -84,7 +84,7 @@ Each row corresponds to one of the 27 Success Criteria from `ROADMAP.md §Phase 
 
 All Phase 3 test files are new (Wave 0) except the Phase 1 route-coverage scaffold (modified, flipped green). Pester 5.7.1 and `_bootstrap.ps1` already in place from Phase 1 — no framework install.
 
-**New test files (19):**
+**New test files (22):**
 
 - [ ] `tests/Unit/MAGNETO_Auth.Tests.ps1` — tagged subgroups `Phase3-Allowlist`, `Phase3-Token`, `Phase3-Sliding`, `Phase3-ConstTime`, `Phase3-RateLimit`; covers SC 7, 10, 11, 15, 23
 - [ ] `tests/Unit/CorsAllowlist.Tests.ps1` — covers SC 16
@@ -111,7 +111,7 @@ All Phase 3 test files are new (Wave 0) except the Phase 1 route-coverage scaffo
 
 **Modified (1):**
 
-- [ ] `tests/RouteAuth/RouteAuthCoverage.Tests.ps1` — Phase 1 scaffold flipped from red to green; assertions updated for 5-entry allowlist; `-Tag Scaffold` removed so it runs on the default gate. Covers SC 6.
+- [ ] `tests/RouteAuth/RouteAuthCoverage.Tests.ps1` — Phase 1 scaffold flipped from red to green; assertions updated for 4-entry allowlist (`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`, `/api/status`); `-Tag Scaffold` removed so it runs on the default gate. Covers SC 6.
 
 **Shared fixtures (2):**
 
