@@ -76,21 +76,30 @@ Describe 'Route auth coverage (scaffold)' -Tag 'Scaffold','RouteAuth' {
     It 'route <Pattern> (line <Line>) has auth or is explicitly public' -TestCases $routes {
         param($Pattern, $Line, $Body)
 
-        # Accepted auth markers for Phase 1 scaffold:
-        #   - \$script:AuthenticationEnabled gate
-        #   - Test-AuthToken / Test-AuthContext call
-        # Phase 3 will widen the allowlist and add the real auth wiring;
-        # scaffold stays red until then by design (ROADMAP Phase 3).
+        # Accepted auth markers. Phase 1 scaffold allowed the pre-auth
+        # $script:AuthenticationEnabled gate; Phase 3 introduces the
+        # Test-AuthContext prelude (T3.1.4). Keep both markers recognized so
+        # the lint works during the transition and after.
         $hasAuthCheck = $Body -match '\$script:AuthenticationEnabled' `
                      -or $Body -match 'Test-AuthToken' `
                      -or $Body -match 'Test-AuthContext'
 
-        # Public allowlist: the minimum survivable set pre-auth.
-        # Phase 3 may widen this (ROADMAP §Success Criteria). Scaffold
-        # reflects today's minimum, not the eventual allowlist.
+        # Public allowlist: the FINAL four-entry unauth set (T3.0.23 update,
+        # per PLAN Decision 12). Static files and /ws are dispatched OUTSIDE
+        # Handle-APIRequest (Handle-StaticFile / Handle-WebSocket) so they
+        # never appear as switch -Regex clauses inside Handle-APIRequest --
+        # the AST walk correctly ignores them by construction. /api/status is
+        # explicitly public so Start_Magneto.bat's exit-1001 restart poll can
+        # reach it without a session cookie.
+        $publicAllowlist = @(
+            '^/api/auth/login$',
+            '^/api/auth/logout$',
+            '^/api/auth/me$',
+            '^/api/status$'
+        )
         $isPublic = $Body -match '#\s*PUBLIC' `
-                 -or $Pattern -in @('^/api/health$','^/api/status$','^/api/login$')
+                 -or $Pattern -in $publicAllowlist
 
-        ($hasAuthCheck -or $isPublic) | Should -BeTrue -Because "Route $Pattern at line $Line lacks an auth marker; Phase 3 must add \$script:AuthenticationEnabled gating, Test-AuthToken/Test-AuthContext, or a # PUBLIC comment"
+        ($hasAuthCheck -or $isPublic) | Should -BeTrue -Because "Route $Pattern at line $Line lacks an auth marker; Phase 3 must add \$script:AuthenticationEnabled gating, Test-AuthContext, or a # PUBLIC comment"
     }
 }
