@@ -15,7 +15,8 @@ param(
     [int]$Port = 8080,
     [string]$WebRoot = "$PSScriptRoot\web",
     [string]$DataPath = "$PSScriptRoot\data",
-    [switch]$NoServer  # When set, load functions only - don't start web server
+    [switch]$NoServer,    # When set, load functions only - don't start web server
+    [switch]$CreateAdmin  # Phase 3 T3.2.1: CLI-only admin bootstrap (AUTH-01)
 )
 
 # Import modules
@@ -28,6 +29,69 @@ Import-Module "$modulesPath\MAGNETO_ExecutionEngine.psm1" -Force
 # Section 3.1 (logger probe) and Pitfall 2 (no top-level code in the helpers file).
 $script:RunspaceHelpersPath = Join-Path $modulesPath 'MAGNETO_RunspaceHelpers.ps1'
 . $script:RunspaceHelpersPath
+
+# Phase 3 auth module - provides ConvertTo-PasswordHash, Test-PasswordHash,
+# New-Session, Test-AuthContext, Set-CorsHeaders, Test-OriginAllowed, and the
+# rate-limit primitives consumed by Handle-APIRequest (T3.2.3) and the auth
+# endpoints (T3.2.4). Imported once here; downstream tasks USE these functions.
+Import-Module (Join-Path $modulesPath 'MAGNETO_Auth.psm1') -Force
+
+# Phase 3 T3.2.1: -CreateAdmin CLI bootstrap (AUTH-01). Exits 0 (NOT 1001)
+# so Start_Magneto.bat does NOT loop-relaunch after a successful create.
+# Must come BEFORE the -NoServer dot-source path so that MAGNETO_TEST_MODE
+# env-var dot-sources do not accidentally trigger the admin prompt. Tests
+# must NOT set -CreateAdmin when dot-sourcing.
+if ($CreateAdmin) {
+    Write-Host 'MAGNETO Admin Account Creation' -ForegroundColor Cyan
+    $username = Read-Host 'Admin username'
+    if ([string]::IsNullOrWhiteSpace($username)) {
+        Write-Host 'Username cannot be empty.' -ForegroundColor Red
+        exit 1
+    }
+    # Read password. When stdin is an attached console, use -AsSecureString so
+    # the keystrokes are not echoed. When stdin is redirected (piped), the
+    # -AsSecureString form hangs in PS 5.1 (Console.ReadKey has no console to
+    # read from), so fall back to plain Read-Host which accepts piped input,
+    # then wrap into a SecureString to preserve the scrubbable-unwrap pattern.
+    $isRedirected = [Console]::IsInputRedirected
+    if ($isRedirected) {
+        $plainInput = Read-Host 'Admin password'
+        $securePass = New-Object System.Security.SecureString
+        foreach ($ch in $plainInput.ToCharArray()) { $securePass.AppendChar($ch) }
+        $securePass.MakeReadOnly()
+        # Zero the plaintext mirror before reusing memory.
+        $plainInput = $null
+    } else {
+        $securePass = Read-Host 'Admin password' -AsSecureString
+    }
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($securePass)
+    try {
+        $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($bstr)
+        $hashRecord = ConvertTo-PasswordHash -PlaintextPassword $plain
+    } finally {
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($bstr)
+        $securePass.Dispose()
+    }
+    # Honor the -DataPath override so tests and alt-data installs both work.
+    # Default $DataPath expands to "$PSScriptRoot\data".
+    $authPath = Join-Path $DataPath 'auth.json'
+    if (-not (Test-Path $DataPath)) {
+        New-Item -ItemType Directory -Path $DataPath -Force | Out-Null
+    }
+    $authData = if (Test-Path $authPath) { Read-JsonFile -Path $authPath } else { @{ users = @() } }
+    if (-not $authData -or -not $authData.users) { $authData = @{ users = @() } }
+    $authData.users = @($authData.users) + @(@{
+        username = $username
+        role = 'admin'
+        hash = $hashRecord
+        disabled = $false
+        lastLogin = $null
+        mustChangePassword = $false
+    })
+    Write-JsonFile -Path $authPath -Data $authData -Depth 6
+    Write-Host "Admin '$username' created successfully." -ForegroundColor Green
+    exit 0
+}
 
 # Initialize synchronized collections for thread safety
 $script:WebSocketClients = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new()
