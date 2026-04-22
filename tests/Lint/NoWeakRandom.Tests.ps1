@@ -60,14 +60,24 @@ if ($moduleExists) {
 Describe 'MAGNETO_Auth.psm1 uses no weak RNG (SESS-02 SC 10 part)' -Tag 'Phase3','Lint' {
 
     It 'parses MAGNETO_Auth.psm1 without errors (once the module exists)' -Skip:(-not $global:NoWeakRandomModuleExists) {
-        Set-ItResult -Skipped -Because 'modules/MAGNETO_Auth.psm1 does not exist yet (pending Wave 1 T3.1.1)'
+        $global:NoWeakRandomParseErrors.Count | Should -Be 0 -Because ($global:NoWeakRandomParseErrors -join "`n")
     }
 
     It 'contains no Get-Random invocation (wall-clock-seeded on PS 5.1 -- predictable)' -Skip:(-not $global:NoWeakRandomModuleExists) {
-        Set-ItResult -Skipped -Because 'modules/MAGNETO_Auth.psm1 does not exist yet (pending Wave 1 T3.1.3)'
+        $getRandoms = @($global:NoWeakRandomViolations | Where-Object { $_.Command -eq 'Get-Random' })
+        if ($getRandoms.Count -gt 0) {
+            $msg = ($getRandoms | ForEach-Object { "L{0}: {1}" -f $_.Line, $_.Text }) -join "`n"
+            throw "Forbidden Get-Random call(s) in MAGNETO_Auth.psm1:`n$msg"
+        }
+        $getRandoms.Count | Should -Be 0
     }
 
     It 'contains no New-Guid invocation (v4 GUIDs have only 122 bits of entropy)' -Skip:(-not $global:NoWeakRandomModuleExists) {
-        Set-ItResult -Skipped -Because 'modules/MAGNETO_Auth.psm1 does not exist yet (pending Wave 1 T3.1.3)'
+        $newGuids = @($global:NoWeakRandomViolations | Where-Object { $_.Command -eq 'New-Guid' })
+        if ($newGuids.Count -gt 0) {
+            $msg = ($newGuids | ForEach-Object { "L{0}: {1}" -f $_.Line, $_.Text }) -join "`n"
+            throw "Forbidden New-Guid call(s) in MAGNETO_Auth.psm1:`n$msg"
+        }
+        $newGuids.Count | Should -Be 0
     }
 }

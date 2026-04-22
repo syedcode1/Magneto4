@@ -268,6 +268,258 @@ function Test-MagnetoAdminAccountExists {
 }
 
 # ---------------------------------------------------------------------------
+# Section 2 -- Session CRUD, token generation, store init (T3.1.3)
+# ---------------------------------------------------------------------------
+#
+# Data-path convention: Initialize-SessionStore receives $DataPath once at
+# server startup and caches it on $script:AuthDataPath. All subsequent
+# session CRUD functions (New-Session, Update-SessionExpiry, Remove-Session)
+# read the cached value. Tests that need a temp-dir fixture call
+# Initialize-SessionStore -DataPath $tempDir before exercising CRUD.
+#
+# Thread safety: $script:Sessions is a synchronized hashtable keyed by the
+# 64-hex token string. All reads/writes through .ContainsKey / indexer
+# acquire the sync root automatically.
+
+$script:Sessions = [hashtable]::Synchronized(@{})
+$script:AuthDataPath = $null
+
+function New-SessionToken {
+    <#
+    .SYNOPSIS
+        Generates a cryptographically-random 64-character lowercase hex token.
+
+    .DESCRIPTION
+        Draws 32 bytes from RNGCryptoServiceProvider and hex-encodes them.
+        Never uses Get-Random (wall-clock-seeded on PS 5.1, predictable) or
+        New-Guid (v4 GUIDs have only 122 bits of entropy plus structured
+        version + variant nibbles an attacker can strip).
+
+    .OUTPUTS
+        [string] -- exactly 64 lowercase hex characters, representing 256
+        bits of CSPRNG entropy.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    $rng = $null
+    try {
+        $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+        $bytes = New-Object byte[] 32
+        $rng.GetBytes($bytes)
+        $sb = New-Object System.Text.StringBuilder(64)
+        foreach ($b in $bytes) {
+            [void]$sb.Append($b.ToString('x2'))
+        }
+        return $sb.ToString()
+    }
+    finally {
+        if ($rng) { $rng.Dispose() }
+    }
+}
+
+function New-Session {
+    <#
+    .SYNOPSIS
+        Creates a new session record and persists it.
+
+    .PARAMETER Username
+        The authenticated username.
+
+    .PARAMETER Role
+        'admin' or 'operator'.
+
+    .OUTPUTS
+        [hashtable] with keys: token, username, role, createdAt, expiresAt.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)][string]$Username,
+        [Parameter(Mandatory)][string]$Role
+    )
+
+    $token = New-SessionToken
+    $now = Get-Date
+    $record = @{
+        token = $token
+        username = $Username
+        role = $Role
+        createdAt = $now.ToString('o')
+        expiresAt = $now.AddDays(30).ToString('o')
+    }
+
+    $script:Sessions[$token] = $record
+    Save-SessionStore
+
+    return $record
+}
+
+function Get-SessionByToken {
+    <#
+    .SYNOPSIS
+        Returns the session record for the given token, or $null if not found.
+
+    .DESCRIPTION
+        Pure read from the in-memory $script:Sessions table. Does NOT touch
+        disk. This is the hot path -- called on every authenticated request
+        via Test-AuthContext.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Token
+    )
+
+    if ($script:Sessions.ContainsKey($Token)) {
+        return $script:Sessions[$Token]
+    }
+    return $null
+}
+
+function Update-SessionExpiry {
+    <#
+    .SYNOPSIS
+        Bumps the session's expiresAt field to (now + 30d) and write-throughs.
+
+    .DESCRIPTION
+        Implements SESS-03 sliding expiry: every successful Test-AuthContext
+        call bumps the session expiry forward by 30 days from now. The store
+        is persisted to disk so expiries survive a server restart.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Token
+    )
+
+    if (-not $script:Sessions.ContainsKey($Token)) { return }
+
+    $record = $script:Sessions[$Token]
+    $record.expiresAt = (Get-Date).AddDays(30).ToString('o')
+    $script:Sessions[$Token] = $record
+    Save-SessionStore
+}
+
+function Remove-Session {
+    <#
+    .SYNOPSIS
+        Removes a session from the registry and persists the deletion.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Token
+    )
+
+    if ($script:Sessions.ContainsKey($Token)) {
+        $script:Sessions.Remove($Token)
+        Save-SessionStore
+    }
+}
+
+function Save-SessionStore {
+    <#
+    .SYNOPSIS
+        Internal: writes $script:Sessions to sessions.json atomically.
+
+    .DESCRIPTION
+        Wraps Write-JsonFile (from modules/MAGNETO_RunspaceHelpers.ps1) with
+        the shape the schema expects: { sessions: [<record>, ...] }. Silently
+        no-ops if Initialize-SessionStore has not yet been called (e.g., in
+        unit tests that only exercise in-memory CRUD). Callers should always
+        Initialize-SessionStore before the first CRUD op in production.
+    #>
+    [CmdletBinding()]
+    param()
+
+    if ([string]::IsNullOrWhiteSpace($script:AuthDataPath)) { return }
+
+    $sessionsPath = Join-Path $script:AuthDataPath 'sessions.json'
+    $values = @($script:Sessions.Values)
+    Write-JsonFile -Path $sessionsPath -Data @{ sessions = $values } -Depth 5 | Out-Null
+}
+
+function Initialize-SessionStore {
+    <#
+    .SYNOPSIS
+        Hydrates $script:Sessions from disk on module load and prunes expired.
+
+    .DESCRIPTION
+        Called once by MagnetoWebService.ps1 at startup (wired in T3.2.3).
+        Reads $DataPath/sessions.json, drops any records whose expiresAt is
+        in the past, populates $script:Sessions, and writes the pruned state
+        back to disk.
+
+        Caches $DataPath on $script:AuthDataPath for the CRUD functions to
+        read later. Clears any previous session state (safe to call repeatedly
+        under test fixtures).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DataPath
+    )
+
+    $script:AuthDataPath = $DataPath
+    $script:Sessions.Clear()
+
+    $sessionsPath = Join-Path $DataPath 'sessions.json'
+    $data = Read-JsonFile -Path $sessionsPath
+    if (-not $data -or -not $data.sessions) {
+        Save-SessionStore
+        return
+    }
+
+    $nowIso = (Get-Date).ToString('o')
+    foreach ($record in $data.sessions) {
+        # ConvertFrom-Json returns PSCustomObject; normalize to hashtable for
+        # uniform consumption by the CRUD functions (which expect .ContainsKey
+        # semantics for role checks, etc.).
+        $normalized = @{}
+        foreach ($prop in $record.PSObject.Properties) {
+            $normalized[$prop.Name] = $prop.Value
+        }
+        if ($normalized.expiresAt -gt $nowIso) {
+            $script:Sessions[$normalized.token] = $normalized
+        }
+    }
+
+    Save-SessionStore
+}
+
+function Get-CookieValue {
+    <#
+    .SYNOPSIS
+        Parses an HTTP Cookie header and extracts the value for a named cookie.
+
+    .DESCRIPTION
+        Splits the header on '; ' (RFC 6265 pair separator) and returns the
+        value for the first pair whose name matches $Name. Returns $null if
+        the header is empty, malformed, or the named cookie is absent.
+
+    .PARAMETER Header
+        The raw Cookie header value (e.g., 'sessionToken=abc123; theme=dark').
+
+    .PARAMETER Name
+        The cookie name to extract.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Header,
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Header)) { return $null }
+
+    $pairs = $Header -split '; '
+    $prefix = "$Name="
+    foreach ($pair in $pairs) {
+        if ($pair.StartsWith($prefix)) {
+            return $pair.Substring($prefix.Length)
+        }
+    }
+    return $null
+}
+
+# ---------------------------------------------------------------------------
 # Exports
 # ---------------------------------------------------------------------------
 
@@ -275,5 +527,12 @@ Export-ModuleMember -Function @(
     'ConvertTo-PasswordHash',
     'Test-ByteArrayEqualConstantTime',
     'Test-PasswordHash',
-    'Test-MagnetoAdminAccountExists'
+    'Test-MagnetoAdminAccountExists',
+    'New-SessionToken',
+    'New-Session',
+    'Get-SessionByToken',
+    'Update-SessionExpiry',
+    'Remove-Session',
+    'Initialize-SessionStore',
+    'Get-CookieValue'
 )

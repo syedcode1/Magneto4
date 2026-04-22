@@ -31,31 +31,117 @@ Describe 'MAGNETO_Auth Get-UnauthAllowlist (allowlist contract)' -Tag 'Phase3','
 
 Describe 'MAGNETO_Auth New-SessionToken (32-byte RNG hex encoding)' -Tag 'Phase3','Unit','Phase3-Token' {
 
-    It 'returns exactly 64 lowercase hex characters' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.3)'
+    BeforeAll {
+        Import-Module (Join-Path $global:RepoRoot 'modules\MAGNETO_Auth.psm1') -Force
     }
 
-    It 'produces unique tokens across 1000 iterations (RNG entropy sanity)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.3)'
+    It 'returns exactly 64 lowercase hex characters' {
+        $token = New-SessionToken
+        $token | Should -Match '^[0-9a-f]{64}$'
     }
 
-    It 'does not call Get-Random or New-Guid internally' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.3) -- AST walk of New-SessionToken body'
+    It 'produces unique tokens across 100 iterations (RNG entropy sanity)' {
+        $set = New-Object System.Collections.Generic.HashSet[string]
+        for ($i = 0; $i -lt 100; $i++) {
+            $null = $set.Add((New-SessionToken))
+        }
+        $set.Count | Should -Be 100
+    }
+
+    It 'does not call Get-Random or New-Guid internally (AST walk of New-SessionToken body)' {
+        $authModulePath = Join-Path $global:RepoRoot 'modules\MAGNETO_Auth.psm1'
+        $tokens = $null; $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $authModulePath, [ref]$tokens, [ref]$errors)
+        $errors.Count | Should -Be 0
+
+        $funcAst = $ast.FindAll({
+            param($n)
+            $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $n.Name -eq 'New-SessionToken'
+        }, $true) | Select-Object -First 1
+        $funcAst | Should -Not -BeNullOrEmpty
+
+        $commands = $funcAst.FindAll({
+            param($n) $n -is [System.Management.Automation.Language.CommandAst]
+        }, $true)
+        $forbidden = @('Get-Random', 'New-Guid')
+        $violations = @()
+        foreach ($c in $commands) {
+            $first = $c.CommandElements[0]
+            if ($first -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                $first.Value -in $forbidden) {
+                $violations += $first.Value
+            }
+        }
+        $violations.Count | Should -Be 0
     }
 }
 
-Describe 'MAGNETO_Auth Update-SessionExpiry (SESS-03 sliding expiry)' -Tag 'Phase3','Unit','Phase3-Sliding' {
+Describe 'MAGNETO_Auth session CRUD (SESS-02, SESS-03, SESS-04, SESS-05)' -Tag 'Phase3','Unit','Phase3-Sliding' {
 
-    It 'bumps expiresAt to exactly now + 30 days on every call' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.3)'
+    BeforeAll {
+        Import-Module (Join-Path $global:RepoRoot 'modules\MAGNETO_Auth.psm1') -Force
     }
 
-    It 'persists to sessions.json via Write-JsonFile after bump' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.3)'
+    BeforeEach {
+        # Fresh temp data dir per test so Save-SessionStore writes are isolated
+        # and one test cannot leak session state into another.
+        $script:tempDataDir = Join-Path ([System.IO.Path]::GetTempPath()) ("magneto-auth-" + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:tempDataDir -Force | Out-Null
+        Initialize-SessionStore -DataPath $script:tempDataDir
     }
 
-    It 'is idempotent within the same second (no drift on rapid calls)' -Skip:$true {
-        Set-ItResult -Skipped -Because 'Implementation pending Wave 1 (T3.1.3)'
+    AfterEach {
+        if ($script:tempDataDir -and (Test-Path $script:tempDataDir)) {
+            Remove-Item -Path $script:tempDataDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'New-Session sets expiresAt to approximately now + 30 days' {
+        $session = New-Session -Username 'alice' -Role 'admin'
+        $created = [DateTime]::Parse($session.createdAt)
+        $expires = [DateTime]::Parse($session.expiresAt)
+        $deltaDays = ($expires - $created).TotalDays
+        $deltaDays | Should -BeGreaterThan 29.999
+        $deltaDays | Should -BeLessThan 30.001
+    }
+
+    It 'Update-SessionExpiry extends expiresAt to new now + 30 days' {
+        $session = New-Session -Username 'bob' -Role 'operator'
+        $originalExpires = [DateTime]::Parse($session.expiresAt)
+        Start-Sleep -Seconds 2
+        Update-SessionExpiry -Token $session.token
+        $refreshed = Get-SessionByToken -Token $session.token
+        $newExpires = [DateTime]::Parse($refreshed.expiresAt)
+        ($newExpires - $originalExpires).TotalSeconds | Should -BeGreaterOrEqual 1
+    }
+
+    It 'Remove-Session removes from registry and persists the deletion' {
+        $session = New-Session -Username 'carol' -Role 'admin'
+        $token = $session.token
+        Remove-Session -Token $token
+        (Get-SessionByToken -Token $token) | Should -BeNullOrEmpty
+
+        $sessionsPath = Join-Path $script:tempDataDir 'sessions.json'
+        $raw = Get-Content -Raw -Path $sessionsPath
+        $raw | Should -Not -Match $token
+    }
+
+    It 'New-Session persists to sessions.json via Write-JsonFile (SESS-04)' {
+        $session = New-Session -Username 'dave' -Role 'operator'
+        $sessionsPath = Join-Path $script:tempDataDir 'sessions.json'
+        Test-Path $sessionsPath | Should -BeTrue
+        $onDisk = Get-Content -Raw -Path $sessionsPath | ConvertFrom-Json
+        $onDisk.sessions.Count | Should -Be 1
+        $onDisk.sessions[0].token | Should -Be $session.token
+    }
+
+    It 'Get-CookieValue extracts the named cookie value from a header' {
+        (Get-CookieValue -Header 'sessionToken=abc123; theme=dark' -Name 'sessionToken') | Should -Be 'abc123'
+        (Get-CookieValue -Header 'theme=dark; sessionToken=xyz' -Name 'sessionToken') | Should -Be 'xyz'
+        (Get-CookieValue -Header 'theme=dark' -Name 'sessionToken') | Should -BeNullOrEmpty
+        (Get-CookieValue -Header '' -Name 'sessionToken') | Should -BeNullOrEmpty
     }
 }
 
