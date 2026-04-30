@@ -40,7 +40,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building release for tag=$TAG version=$VERSION"
 
-      - name: Sanity check -- tag matches Version: header in MagnetoWebService.ps1
+      - name: "Sanity check -- tag matches Version header in MagnetoWebService.ps1"
         shell: bash
         run: |
           set -e
