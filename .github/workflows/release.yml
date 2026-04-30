@@ -96,7 +96,6 @@ jobs:
           cp README.md                 "$STAGE/" || true
           cp CHANGELOG.md              "$STAGE/" || true
           cp LICENSE                   "$STAGE/" || true
-          cp CLAUDE.md                 "$STAGE/" || true
 
           # Strip the customer-internal Tailscale invite file if it slipped in.
           rm -f "$STAGE/docs/892httpslogin.tailscale.comadmininv.txt" || true

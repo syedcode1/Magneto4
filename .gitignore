@@ -49,3 +49,7 @@ Thumbs.db
 # --- Internal planning + customer-internal docs (never publish) -----------
 .planning/
 docs/892httpslogin.tailscale.comadmininv.txt
+
+# --- AI tooling instructions (Claude Code project guidance) ----------------
+# Used locally by Claude Code; not part of the customer-facing distribution.
+CLAUDE.md
