@@ -43,7 +43,7 @@ Write-Host @"
  ██║╚██╔╝██║██╔══██║██║   ██║██║╚██╗██║██╔══╝     ██║   ██║   ██║
  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║ ╚████║███████╗   ██║   ╚██████╔╝
  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝    ╚═════╝
-            Active Directory UEBA Simulation User Setup v4.0
+            Active Directory UEBA Simulation User Setup v4.5
 
 "@ -ForegroundColor Green
 

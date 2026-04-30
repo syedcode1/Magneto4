@@ -32,7 +32,7 @@ Write-Host @"
  ██║╚██╔╝██║██╔══██║██║   ██║██║╚██╗██║██╔══╝     ██║   ██║   ██║
  ██║ ╚═╝ ██║██║  ██║╚██████╔╝██║ ╚████║███████╗   ██║   ╚██████╔╝
  ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝    ╚═════╝
-                    UEBA Simulation User Setup v4.0
+                    UEBA Simulation User Setup v4.5
 
 "@ -ForegroundColor Green
 

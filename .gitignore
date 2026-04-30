@@ -1,18 +1,51 @@
-# Runtime state (generated on first run; do not distribute)
-data/audit-log.json
-data/execution-history.json
+# =============================================================================
+# MAGNETO V4 -- .gitignore
+# =============================================================================
+# Two intents drive this file:
+#   (1) Never commit operator-owned data (auth, users, schedules, history,
+#       sessions, audit, rotation state). These are written by a running
+#       MAGNETO instance and must stay private to that instance.
+#   (2) Never commit local-only artifacts: logs, backups, update staging,
+#       generated launcher scripts, IDE/tooling state, zip snapshots.
+#
+# Curated reference data (techniques.json, campaigns.json, nist-mappings.json,
+# ttp-classification.json, builtin-ttp-ids.json) IS tracked because new users
+# need it to bootstrap from a fresh release zip.
+# =============================================================================
+
+# --- Operator-owned runtime data (NEVER commit) ----------------------------
+data/auth.json
+data/users.json
+data/sessions.json
 data/schedules.json
 data/smart-rotation.json
-data/users.json
+data/execution-history.json
+data/audit-log.json
 
-# Logs
+# --- Logs ------------------------------------------------------------------
 logs/
 magneto.log
 *.log
 
-# Backup archives / local builds
+# --- Update mechanism artifacts (generated locally, never committed) ------
+backups/
+update-staging/
+Apply-Update.ps1
+Run-Schedule.ps1
+Run-SmartRotation.ps1
+
+# --- Local archives / build outputs ---------------------------------------
 *.zip
 *.zip.old
 
-# Tooling / local environment
+# --- Tooling / IDE / OS ---------------------------------------------------
 .claude/
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
+
+# --- Internal planning + customer-internal docs (never publish) -----------
+.planning/
+docs/892httpslogin.tailscale.comadmininv.txt

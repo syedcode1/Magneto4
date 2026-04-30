@@ -7,7 +7,7 @@
     Provides REST API for technique management and real-time console streaming.
 
 .NOTES
-    Version: 4.0.0
+    Version: 4.5.0
     Author: MAGNETO Development Team
 #>
 
@@ -17,7 +17,8 @@ param(
     [string]$DataPath = "$PSScriptRoot\data",
     [switch]$NoServer,     # When set, load functions only - don't start web server
     [switch]$CreateAdmin,  # Phase 3 T3.2.1: CLI-only admin bootstrap (AUTH-01)
-    [switch]$NoBrowser     # Suppress auto-open browser; integration tests pass this to prevent desktop spam
+    [switch]$NoBrowser,    # Suppress auto-open browser; integration tests pass this to prevent desktop spam
+    [switch]$ColdStart     # Set by Start_Magneto.bat on first launch: clears sessions.json so every cold launch requires fresh login. NOT set on exit-1001 warm restart (SESS-04 preserves sessions across the in-app restart).
 )
 
 # Import modules
@@ -109,10 +110,45 @@ if ($CreateAdmin) {
 $script:WebSocketClients = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new()
 $script:ServerRunning = $true
 $script:RestartRequested = $false
+# Set true by /api/system/update/install. Main loop closes the listener and
+# exits with 0 (NOT 1001) so Start_Magneto.bat does NOT loop-relaunch -- the
+# detached Apply-Update.ps1 helper will do the file copy and re-launch the
+# batch itself once the parent process is fully gone.
+$script:UpdateRestartRequested = $false
 $script:AsyncExecutions = [hashtable]::Synchronized(@{})
 $script:WebSocketRunspaces = [hashtable]::Synchronized(@{})
 # Cross-runspace stop signal (Stop-Execution sets .stop=$true; runspace polls)
 $script:CurrentExecutionStop = [hashtable]::Synchronized(@{ stop = $false })
+# Short-TTL cache for GET /api/status so the dashboard heartbeat does not
+# re-read 5 JSON files every 20 seconds. Invalidated by any write operation
+# that bumps $script:StatusCacheBust (state-changing endpoints can do so).
+$script:StatusCache = @{ Data = $null; Timestamp = [DateTime]::MinValue }
+$script:StatusCacheTtlSeconds = 5
+
+# ---------------------------------------------------------------------------
+# Update mechanism (in-app GitHub Releases puller).
+# Single source of truth for the current version: this constant.
+# Public endpoints (`/api/health`, `/api/status`, `/api/system/version`) all
+# read from here so future bumps are a one-line edit.
+# ---------------------------------------------------------------------------
+$script:MagnetoVersion   = '4.5.0'
+$script:UpdateRepoOwner  = 'syedcode1'
+$script:UpdateRepoName   = 'Magneto4'
+# Cached result of the last GitHub /releases/latest poll. Populated by the
+# startup runspace (best-effort) and refreshed by POST /api/system/update/check.
+# Synchronized so the runspace and main thread cannot tear each other.
+$script:UpdateCheck = [hashtable]::Synchronized(@{
+    LastChecked     = [DateTime]::MinValue
+    LatestVersion   = $null
+    LatestUrl       = $null
+    AssetUrl        = $null
+    AssetName       = $null
+    Sha256          = $null
+    ReleaseNotes    = $null
+    UpdateAvailable = $false
+    LastError       = $null
+})
+$script:UpdateInProgress = $false
 
 # MIME types
 $MimeTypes = @{
@@ -750,6 +786,501 @@ function Broadcast-ConsoleMessage {
     }
 }
 
+# Built-in TTP catalogue -- populated lazily from data/builtin-ttp-ids.json the
+# first time it's queried. Used by the PUT TTP handler (provenance fallback) and
+# by the in-app updater's merge logic to decide which entries in techniques.json
+# came from the release zip vs were authored by the operator.
+$script:BuiltinTtpIds = $null
+
+function Get-MagnetoBuiltinTtpIds {
+    if ($null -ne $script:BuiltinTtpIds) { return $script:BuiltinTtpIds }
+    $idsFile = Join-Path $DataPath 'builtin-ttp-ids.json'
+    if (Test-Path $idsFile) {
+        try {
+            $raw = Get-Content -Path $idsFile -Raw -ErrorAction Stop
+            $parsed = $raw | ConvertFrom-Json -ErrorAction Stop
+            # File is a flat array OR an object with .ids -- accept either.
+            $list = if ($parsed -is [System.Array]) { $parsed } elseif ($parsed.ids) { $parsed.ids } else { @() }
+            $script:BuiltinTtpIds = @{}
+            foreach ($id in $list) { $script:BuiltinTtpIds[[string]$id] = $true }
+        } catch {
+            Write-Log "Get-MagnetoBuiltinTtpIds: failed to parse builtin-ttp-ids.json: $($_.Exception.Message)" -Level Warning
+            $script:BuiltinTtpIds = @{}
+        }
+    } else {
+        # No catalogue file shipped -- treat as empty so unknown ids fall back to 'custom'.
+        $script:BuiltinTtpIds = @{}
+    }
+    return $script:BuiltinTtpIds
+}
+
+function Test-MagnetoBuiltinTtpId {
+    param([Parameter(Mandatory)][string]$Id)
+    $catalogue = Get-MagnetoBuiltinTtpIds
+    return $catalogue.ContainsKey($Id)
+}
+
+# ---------------------------------------------------------------------------
+# Update mechanism helpers.
+# Lives next to the other top-level helpers so the runspace + endpoints can
+# all reach them. None of these helpers do I/O at module-load time -- they
+# are pure functions or invoked on-demand from a runspace.
+# ---------------------------------------------------------------------------
+
+function Compare-MagnetoVersion {
+    <#
+    .SYNOPSIS
+        Compare two semver-ish version strings. Returns -1 if A<B, 0 if equal, 1 if A>B.
+    .DESCRIPTION
+        Tolerant of leading 'v', missing patch (4.5 == 4.5.0), and extra segments.
+        Pre-release suffixes (e.g. -beta) are dropped before comparison; we treat
+        release tags as the canonical form. If a segment fails to parse it is
+        treated as 0, which deliberately makes malformed inputs sort low.
+    #>
+    param([string]$A, [string]$B)
+    if ([string]::IsNullOrWhiteSpace($A)) { $A = '0' }
+    if ([string]::IsNullOrWhiteSpace($B)) { $B = '0' }
+    $clean = {
+        param($v)
+        $v = $v.Trim()
+        if ($v.StartsWith('v') -or $v.StartsWith('V')) { $v = $v.Substring(1) }
+        # strip pre-release / build suffix
+        $idx = $v.IndexOfAny([char[]]@('-','+'))
+        if ($idx -ge 0) { $v = $v.Substring(0, $idx) }
+        return $v
+    }
+    $aParts = (& $clean $A).Split('.')
+    $bParts = (& $clean $B).Split('.')
+    $max = [Math]::Max($aParts.Length, $bParts.Length)
+    for ($i = 0; $i -lt $max; $i++) {
+        $ai = 0; $bi = 0
+        if ($i -lt $aParts.Length) { [int]::TryParse($aParts[$i], [ref]$ai) | Out-Null }
+        if ($i -lt $bParts.Length) { [int]::TryParse($bParts[$i], [ref]$bi) | Out-Null }
+        if ($ai -lt $bi) { return -1 }
+        if ($ai -gt $bi) { return 1 }
+    }
+    return 0
+}
+
+function Invoke-MagnetoUpdateCheck {
+    <#
+    .SYNOPSIS
+        Polls https://api.github.com/repos/<owner>/<repo>/releases/latest and fills
+        $script:UpdateCheck with the result.
+    .DESCRIPTION
+        Best-effort, exception-tolerant. On failure, $script:UpdateCheck.LastError
+        is set and the rest of the cache is left as-is so a transient outage does
+        not flap the dashboard banner. Force TLS 1.2 because PS 5.1 defaults to
+        1.0/1.1 in some configs and the GitHub API rejects those.
+
+        Body of a GitHub release is parsed for a `SHA256: <hex>` line so MAGNETO
+        can verify the asset before applying the update.
+    #>
+    [CmdletBinding()]
+    param([switch]$Force)
+
+    try {
+        # If a fresh check ran in the last 60s, skip unless forced. Limits API
+        # spam if multiple things call this in quick succession.
+        if (-not $Force -and $script:UpdateCheck.LastChecked -ne [DateTime]::MinValue) {
+            $age = ((Get-Date) - $script:UpdateCheck.LastChecked).TotalSeconds
+            if ($age -lt 60) { return $script:UpdateCheck }
+        }
+
+        # Force TLS 1.2 -- GitHub API will not negotiate older protocols.
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor `
+                [Net.ServicePointManager]::SecurityProtocol
+        }
+        # INTENTIONAL-SWALLOW: Some hosts already pin TLS via group policy
+        catch { }
+
+        $apiUrl = "https://api.github.com/repos/$($script:UpdateRepoOwner)/$($script:UpdateRepoName)/releases/latest"
+        $headers = @{
+            'User-Agent' = "MAGNETO/$($script:MagnetoVersion)"
+            'Accept'     = 'application/vnd.github+json'
+        }
+        $resp = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 5 -ErrorAction Stop
+
+        $tag = [string]$resp.tag_name
+        $latest = $tag
+        if ($latest.StartsWith('v') -or $latest.StartsWith('V')) { $latest = $latest.Substring(1) }
+
+        # Find the zip asset (we ship exactly one per release).
+        $asset = $null
+        if ($resp.assets) {
+            $asset = $resp.assets | Where-Object { $_.name -like '*.zip' } | Select-Object -First 1
+        }
+
+        # Parse SHA256 from the release body. Tolerant of "SHA256: abc", "SHA-256: abc",
+        # "SHA-256:  abc" with any whitespace.
+        $sha256 = $null
+        if ($resp.body) {
+            $match = [regex]::Match([string]$resp.body, '(?im)^\s*sha[\s-]*256\s*:\s*([0-9a-fA-F]{64})\s*$')
+            if ($match.Success) { $sha256 = $match.Groups[1].Value.ToUpperInvariant() }
+        }
+
+        $cmp = Compare-MagnetoVersion -A $script:MagnetoVersion -B $latest
+
+        $script:UpdateCheck.LastChecked     = Get-Date
+        $script:UpdateCheck.LatestVersion   = $latest
+        $script:UpdateCheck.LatestUrl       = [string]$resp.html_url
+        $script:UpdateCheck.AssetUrl        = if ($asset) { [string]$asset.browser_download_url } else { $null }
+        $script:UpdateCheck.AssetName       = if ($asset) { [string]$asset.name } else { $null }
+        $script:UpdateCheck.Sha256          = $sha256
+        $script:UpdateCheck.ReleaseNotes    = [string]$resp.body
+        $script:UpdateCheck.UpdateAvailable = ($cmp -lt 0)
+        $script:UpdateCheck.LastError       = $null
+
+        Write-Log "UpdateCheck: latest=$latest current=$($script:MagnetoVersion) updateAvailable=$($script:UpdateCheck.UpdateAvailable)" -Level Info
+    }
+    catch {
+        $script:UpdateCheck.LastChecked = Get-Date
+        $script:UpdateCheck.LastError   = $_.Exception.Message
+        Write-Log "UpdateCheck failed: $($_.Exception.Message)" -Level Warning
+    }
+    return $script:UpdateCheck
+}
+
+function Save-MagnetoBackup {
+    <#
+    .SYNOPSIS
+        Zip the current install (code only -- skips operator data) to backups/.
+        Keeps last 5 backups, prunes older ones.
+    .DESCRIPTION
+        Run before every in-app update so a broken update can be rolled back by
+        unzipping the most-recent backup over the install root.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$BackupRoot = (Join-Path $PSScriptRoot 'backups'),
+        [string]$Version = $script:MagnetoVersion
+    )
+
+    if (-not (Test-Path $BackupRoot)) {
+        New-Item -ItemType Directory -Path $BackupRoot -Force | Out-Null
+    }
+
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $zipName = "magneto-v$Version-$stamp.zip"
+    $zipPath = Join-Path $BackupRoot $zipName
+
+    # Stage candidate files in a temp dir (excluding operator-owned files,
+    # logs, backups, update-staging, generated launchers, .git, .planning).
+    # We use Compress-Archive directly with -Path arrays since PS 5.1's
+    # Compress-Archive does not support -Exclude on a directory tree.
+    $excludeRel = @(
+        'data/auth.json', 'data/users.json', 'data/sessions.json',
+        'data/schedules.json', 'data/smart-rotation.json',
+        'data/execution-history.json', 'data/audit-log.json',
+        'logs', 'backups', 'update-staging',
+        'Apply-Update.ps1', 'Run-Schedule.ps1', 'Run-SmartRotation.ps1',
+        '.git', '.planning', '.claude'
+    ) | ForEach-Object { (Join-Path $PSScriptRoot $_).Replace('/', [IO.Path]::DirectorySeparatorChar) }
+
+    $items = Get-ChildItem -Path $PSScriptRoot -Force | Where-Object {
+        $full = $_.FullName
+        $skip = $false
+        foreach ($ex in $excludeRel) { if ($full -eq $ex) { $skip = $true; break } }
+        -not $skip
+    }
+
+    if ($items.Count -eq 0) {
+        Write-Log "Save-MagnetoBackup: nothing to back up" -Level Warning
+        return $null
+    }
+
+    # Compress-Archive -DestinationPath rejects an existing file unless -Update is set.
+    Compress-Archive -Path ($items | ForEach-Object { $_.FullName }) -DestinationPath $zipPath -Force -ErrorAction Stop
+
+    # Prune: keep newest 5.
+    $existing = Get-ChildItem -Path $BackupRoot -Filter 'magneto-v*.zip' -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
+    if ($existing.Count -gt 5) {
+        $existing | Select-Object -Skip 5 | ForEach-Object {
+            Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue
+            Write-Log "Save-MagnetoBackup: pruned old backup $($_.Name)" -Level Info
+        }
+    }
+
+    Write-Log "Save-MagnetoBackup: wrote $zipPath" -Level Info
+    return $zipPath
+}
+
+function Get-MagnetoMergedTtpFile {
+    <#
+    .SYNOPSIS
+        Merge a new release's techniques.json with the operator's local file.
+        Built-in entries (id in BuiltinIds) come from the new release; everything
+        else is preserved verbatim from the local file.
+    .OUTPUTS
+        [PSCustomObject] -- the merged techniques.json structure ready to write.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$LocalData,
+        [Parameter(Mandatory)][object]$NewData,
+        [Parameter(Mandatory)][string[]]$BuiltinIds
+    )
+    $ids = @{}; foreach ($id in $BuiltinIds) { $ids[[string]$id] = $true }
+
+    $result = [ordered]@{}
+    # Copy top-level metadata from the new release (version, framework, etc.)
+    foreach ($p in $NewData.PSObject.Properties) {
+        if ($p.Name -ne 'techniques') { $result[$p.Name] = $p.Value }
+    }
+
+    # Build merged technique list: replace by id when built-in, preserve all
+    # operator entries (id NOT in BuiltinIds) verbatim from the local file.
+    $merged = @()
+    foreach ($t in @($NewData.techniques)) { $merged += $t }
+    foreach ($t in @($LocalData.techniques)) {
+        if (-not $ids.ContainsKey([string]$t.id)) {
+            # Operator-added (or operator-edited-but-unrecognized) -- keep as-is.
+            $merged += $t
+        }
+    }
+    $result['techniques'] = @($merged)
+    return [PSCustomObject]$result
+}
+
+function Get-MagnetoMergedCampaignFile {
+    <#
+    .SYNOPSIS
+        Merge a new release's campaigns.json with the local one. Both
+        aptCampaigns[] and industryVerticals[] are union'd by id, with the
+        new release's entries replacing matching local ids.
+    .OUTPUTS
+        [PSCustomObject] -- the merged campaigns.json structure ready to write.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$LocalData,
+        [Parameter(Mandatory)][object]$NewData
+    )
+    $result = [ordered]@{}
+    foreach ($p in $NewData.PSObject.Properties) {
+        if ($p.Name -notin @('aptCampaigns','industryVerticals')) {
+            $result[$p.Name] = $p.Value
+        }
+    }
+    foreach ($listName in @('aptCampaigns','industryVerticals')) {
+        $newList    = @($NewData.$listName)
+        $localList  = @($LocalData.$listName)
+        $newIds     = @{}; foreach ($e in $newList) { if ($e.id) { $newIds[[string]$e.id] = $true } }
+        $merged     = @()
+        foreach ($e in $newList) { $merged += $e }
+        foreach ($e in $localList) {
+            if (-not $e.id) { continue }
+            if (-not $newIds.ContainsKey([string]$e.id)) {
+                $merged += $e   # operator-authored, preserve verbatim
+            }
+        }
+        $result[$listName] = @($merged)
+    }
+    return [PSCustomObject]$result
+}
+
+function Write-MagnetoUpdateApplier {
+    <#
+    .SYNOPSIS
+        Generate the Apply-Update.ps1 helper script next to MagnetoWebService.ps1.
+        The helper runs as a detached process AFTER MAGNETO exits, copies files
+        from update-staging/extracted/ into the install root (skipping operator
+        data + merging techniques.json + campaigns.json), then re-launches the
+        batch.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$TargetDir,
+        [Parameter(Mandatory)][string]$SourceDir,
+        [Parameter(Mandatory)][string]$Version,
+        [int]$ParentPid = $PID
+    )
+    $applyPath = Join-Path $TargetDir 'Apply-Update.ps1'
+
+    # The helper is parametric on TargetDir / SourceDir / Version so the same
+    # script works regardless of install location. Embedded preservation list +
+    # merge logic here so the helper has zero runtime dependency on
+    # MagnetoWebService.ps1 (which it cannot dot-source -- that file is being
+    # overwritten as part of the update).
+    $applyContent = @"
+# Apply-Update.ps1 -- MAGNETO in-app update applier. Auto-generated; do not edit.
+# Runs detached after MAGNETO exits. Copies new files into the install root,
+# skipping operator-owned data files. Re-launches Start_Magneto.bat at the end.
+param(
+    [string]`$TargetDir   = '$TargetDir',
+    [string]`$SourceDir   = '$SourceDir',
+    [string]`$Version     = '$Version',
+    [int]   `$ParentPid   = $ParentPid
+)
+
+`$ErrorActionPreference = 'Continue'
+`$logDir = Join-Path `$TargetDir 'logs'
+if (-not (Test-Path `$logDir)) { New-Item -ItemType Directory -Path `$logDir -Force | Out-Null }
+`$logFile = Join-Path `$logDir ("update-applier-{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+
+function Log(`$msg) {
+    `$ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'
+    Add-Content -Path `$logFile -Value "[`$ts] `$msg" -Encoding UTF8 -ErrorAction SilentlyContinue
+}
+
+Log "Apply-Update starting. version=`$Version target=`$TargetDir source=`$SourceDir parentPid=`$ParentPid"
+
+# 1. Wait for parent MAGNETO to fully exit (release file locks). Poll the PID
+#    + the listener port. 60s hard cap.
+`$deadline = (Get-Date).AddSeconds(60)
+while ((Get-Date) -lt `$deadline) {
+    `$alive = `$null -ne (Get-Process -Id `$ParentPid -ErrorAction SilentlyContinue)
+    `$portFree = `$true
+    try {
+        `$tcp = [System.Net.Sockets.TcpClient]::new()
+        `$tcp.Connect('127.0.0.1', 8080)
+        `$portFree = `$false
+        `$tcp.Close()
+    } catch { `$portFree = `$true }
+    if ((-not `$alive) -and `$portFree) { break }
+    Start-Sleep -Milliseconds 500
+}
+Log "Parent exited / port free. Proceeding with copy."
+
+# 2. Preservation list -- relative paths (forward slashes) from `$TargetDir.
+`$preserveExact = @(
+    'data/auth.json', 'data/users.json', 'data/sessions.json',
+    'data/schedules.json', 'data/smart-rotation.json',
+    'data/execution-history.json', 'data/audit-log.json'
+)
+`$preservePrefix = @('logs/', 'backups/', 'update-staging/')
+
+function Test-IsPreserved(`$rel) {
+    `$rel = `$rel.Replace('\','/')
+    if (`$preserveExact -contains `$rel) { return `$true }
+    foreach (`$p in `$preservePrefix) {
+        if (`$rel.StartsWith(`$p, [System.StringComparison]::OrdinalIgnoreCase)) { return `$true }
+    }
+    return `$false
+}
+
+# 3. Locate the staged release root. The zip extracts to a "magneto-vX.Y.Z/" subfolder.
+`$srcRoot = `$SourceDir
+`$inner = Get-ChildItem -Path `$SourceDir -Directory -ErrorAction SilentlyContinue
+if ((`$inner.Count -eq 1) -and (Test-Path (Join-Path `$inner[0].FullName 'MagnetoWebService.ps1'))) {
+    `$srcRoot = `$inner[0].FullName
+}
+Log "Source root resolved to: `$srcRoot"
+
+if (-not (Test-Path (Join-Path `$srcRoot 'MagnetoWebService.ps1'))) {
+    Log "ERROR: source root does not contain MagnetoWebService.ps1 -- aborting"
+    exit 1
+}
+
+# 4. Walk every file in the staged release; copy into target.
+`$copied = 0; `$skipped = 0; `$merged = 0
+Get-ChildItem -Path `$srcRoot -Recurse -File | ForEach-Object {
+    `$srcFile = `$_.FullName
+    `$rel     = `$srcFile.Substring(`$srcRoot.Length).TrimStart('\','/')
+    `$relUx   = `$rel.Replace('\','/')
+
+    if (Test-IsPreserved `$relUx) {
+        `$skipped++
+        return
+    }
+
+    `$dst = Join-Path `$TargetDir `$rel
+    `$dstDir = Split-Path `$dst -Parent
+    if (-not (Test-Path `$dstDir)) {
+        New-Item -ItemType Directory -Path `$dstDir -Force | Out-Null
+    }
+
+    if (`$relUx -in @('data/techniques.json','data/campaigns.json')) {
+        # Merge instead of overwrite: preserve operator-authored entries.
+        try {
+            if ((Test-Path `$dst) -and (Test-Path (Join-Path `$srcRoot 'data\builtin-ttp-ids.json'))) {
+                `$localRaw = Get-Content `$dst -Raw -Encoding UTF8
+                `$newRaw   = Get-Content `$srcFile -Raw -Encoding UTF8
+                `$local = `$localRaw | ConvertFrom-Json
+                `$new   = `$newRaw   | ConvertFrom-Json
+                if (`$relUx -eq 'data/techniques.json') {
+                    `$idsRaw = Get-Content (Join-Path `$srcRoot 'data\builtin-ttp-ids.json') -Raw -Encoding UTF8
+                    `$idsParsed = `$idsRaw | ConvertFrom-Json
+                    `$ids = if (`$idsParsed -is [System.Array]) { `$idsParsed } else { `$idsParsed.ids }
+                    `$idMap = @{}; foreach (`$id in `$ids) { `$idMap[[string]`$id] = `$true }
+                    `$mergedTtps = @()
+                    foreach (`$t in @(`$new.techniques)) { `$mergedTtps += `$t }
+                    foreach (`$t in @(`$local.techniques)) {
+                        if (-not `$idMap.ContainsKey([string]`$t.id)) { `$mergedTtps += `$t }
+                    }
+                    `$out = `$new.PSObject.Copy()
+                    `$out | Add-Member -NotePropertyName 'techniques' -NotePropertyValue @(`$mergedTtps) -Force
+                    [System.IO.File]::WriteAllText(`$dst, ((`$out | ConvertTo-Json -Depth 10) -replace `"`r`n`",`"`n`"), [System.Text.UTF8Encoding]::new(`$false))
+                    Log "MERGE techniques.json: built-in=`$(@(`$new.techniques).Count) preserved=`$((@(`$mergedTtps).Count) - @(`$new.techniques).Count) total=`$(@(`$mergedTtps).Count)"
+                }
+                else {
+                    foreach (`$listName in @('aptCampaigns','industryVerticals')) {
+                        `$newList   = @(`$new.`$listName)
+                        `$localList = @(`$local.`$listName)
+                        `$newIds = @{}; foreach (`$e in `$newList) { if (`$e.id) { `$newIds[[string]`$e.id] = `$true } }
+                        `$mergedList = @()
+                        foreach (`$e in `$newList) { `$mergedList += `$e }
+                        foreach (`$e in `$localList) {
+                            if (`$e.id -and -not `$newIds.ContainsKey([string]`$e.id)) { `$mergedList += `$e }
+                        }
+                        `$new | Add-Member -NotePropertyName `$listName -NotePropertyValue @(`$mergedList) -Force
+                    }
+                    [System.IO.File]::WriteAllText(`$dst, ((`$new | ConvertTo-Json -Depth 10) -replace `"`r`n`",`"`n`"), [System.Text.UTF8Encoding]::new(`$false))
+                    Log "MERGE campaigns.json"
+                }
+                `$merged++
+                return
+            }
+        } catch {
+            Log "merge failed for `$relUx -- falling back to overwrite: `$(`$_.Exception.Message)"
+        }
+    }
+
+    Copy-Item -Path `$srcFile -Destination `$dst -Force
+    `$copied++
+}
+Log "Copy complete: copied=`$copied skipped=`$skipped merged=`$merged"
+
+# 5. Tidy staging.
+try {
+    `$stagingDir = Join-Path `$TargetDir 'update-staging'
+    if (Test-Path `$stagingDir) {
+        Remove-Item -Path `$stagingDir -Recurse -Force -ErrorAction Stop
+        Log "Removed update-staging/"
+    }
+} catch {
+    Log "Could not clean update-staging: `$(`$_.Exception.Message)"
+}
+
+# 6. Write applied marker.
+`$marker = Join-Path `$TargetDir ("logs\update-applied-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+@{
+    version       = `$Version
+    appliedAt     = (Get-Date -Format 'o')
+    copiedFiles   = `$copied
+    skippedFiles  = `$skipped
+    mergedFiles   = `$merged
+    sourceRoot    = `$srcRoot
+} | ConvertTo-Json -Depth 3 | Out-File -FilePath `$marker -Encoding UTF8
+
+# 7. Re-launch MAGNETO.
+`$bat = Join-Path `$TargetDir 'Start_Magneto.bat'
+if (Test-Path `$bat) {
+    Log "Launching Start_Magneto.bat"
+    Start-Process -FilePath `$bat -WorkingDirectory `$TargetDir
+} else {
+    Log "ERROR: Start_Magneto.bat not found at `$bat"
+}
+
+Log "Apply-Update finished. exiting."
+"@
+
+    [System.IO.File]::WriteAllText($applyPath, $applyContent, [System.Text.UTF8Encoding]::new($false))
+    return $applyPath
+}
+
 function Get-Techniques {
     $techniquesFile = Join-Path $DataPath "techniques.json"
     if (Test-Path $techniquesFile) {
@@ -853,26 +1384,37 @@ function New-MagnetoScheduledTask {
     $taskName = "MAGNETO_$($Schedule.id)"
     $magnetoPath = $PSScriptRoot
 
-    # Build the execution command - calls MAGNETO API via PowerShell
-    $executionScript = @"
-`$ErrorActionPreference = 'SilentlyContinue'
+    # Phase 3 auth prelude requires a session cookie on /api/execute/start, so the
+    # original "POST localhost via Invoke-RestMethod" pattern died with 401 the moment
+    # auth shipped. Match the Smart Rotation pattern instead: write a launcher script
+    # that dot-sources MagnetoWebService.ps1 -NoServer and calls Invoke-ScheduledRun
+    # in-process. No HTTP, no auth, history is saved by the run helper directly.
+    $launcherScript = Join-Path $magnetoPath "Run-Schedule.ps1"
+    if (-not (Test-Path $launcherScript)) {
+        $launcherContent = @"
+param([Parameter(Mandatory)][string]`$ScheduleId)
+`$ErrorActionPreference = 'Continue'
+
+# Best-effort log so we can tell whether the Windows task even fired
+`$logDir = Join-Path '$magnetoPath' 'logs'
+if (-not (Test-Path `$logDir)) { New-Item -ItemType Directory -Path `$logDir -Force | Out-Null }
+`$ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+Add-Content -Path "`$logDir\magneto.log" -Value "[`$ts] [Info] ========== SCHEDULE LAUNCHER FIRED  ScheduleId=`$ScheduleId =========="
+
 try {
-    `$body = @{
-        techniqueIds = @($(($Schedule.techniqueIds | ForEach-Object { "'$_'" }) -join ','))
-        name = '$($Schedule.name)'
-        runCleanup = `$$($Schedule.runCleanup.ToString().ToLower())
-        delayBetweenMs = 1000
-        userId = $(if ($Schedule.userId) { "'$($Schedule.userId)'" } else { '$null' })
-        scheduledRun = `$true
-    } | ConvertTo-Json -Compress
-    Invoke-RestMethod -Uri 'http://localhost:8080/api/execute/start' -Method POST -Body `$body -ContentType 'application/json'
-} catch {
-    Write-EventLog -LogName Application -Source 'MAGNETO' -EventId 1001 -EntryType Error -Message "Scheduled execution failed: `$_"
+    Set-Location '$magnetoPath'
+    . '$magnetoPath\MagnetoWebService.ps1' -NoServer
+    Invoke-ScheduledRun -ScheduleId `$ScheduleId
+}
+catch {
+    `$err = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -Path "`$logDir\magneto.log" -Value "[`$err] [Error] Schedule launcher failed: `$(`$_.Exception.Message)"
+    Add-Content -Path "`$logDir\magneto.log" -Value "[`$err] [Error] Stack: `$(`$_.ScriptStackTrace)"
+    throw
 }
 "@
-
-    # Encode the script for the scheduled task
-    $encodedScript = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($executionScript))
+        $launcherContent | Out-File -FilePath $launcherScript -Encoding UTF8 -Force
+    }
 
     try {
         # Remove existing task if it exists
@@ -881,8 +1423,9 @@ try {
             Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
         }
 
-        # Create the action
-        $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -EncodedCommand $encodedScript"
+        # Create the action -- launcher script + this schedule's id as parameter
+        $action = New-ScheduledTaskAction -Execute "powershell.exe" `
+            -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherScript`" -ScheduleId `"$($Schedule.id)`""
 
         # Create trigger based on schedule type
         $trigger = switch ($Schedule.scheduleType) {
@@ -922,13 +1465,26 @@ try {
         $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
 
         # Register the task
-        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "MAGNETO V4 Scheduled Execution: $($Schedule.name)"
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "MAGNETO V4 Scheduled Execution: $($Schedule.name)" | Out-Null
 
-        Write-Log "Created scheduled task: $taskName" -Level Info
-        return @{ success = $true; taskName = $taskName }
+        # Verify trigger landed by reading it back -- silent registration drift is the main complaint
+        $verifyTrigger = $null
+        try {
+            $verify = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+            if ($verify -and $verify.Triggers -and $verify.Triggers.Count -gt 0) {
+                $verifyTrigger = $verify.Triggers[0].StartBoundary
+            }
+        }
+        # INTENTIONAL-SWALLOW: verification is best-effort diagnostics
+        catch { }
+
+        Write-Log "Created scheduled task: $taskName  type=$($Schedule.scheduleType)  startDateTime=$($Schedule.startDateTime)  registeredStartBoundary=$verifyTrigger" -Level Info
+        Write-SchedulerLog -ScheduleId $Schedule.id -ScheduleName $Schedule.name -Message "Windows task '$taskName' registered. type=$($Schedule.scheduleType) start=$($Schedule.startDateTime) boundary=$verifyTrigger" -Level "INFO"
+        return @{ success = $true; taskName = $taskName; registeredStartBoundary = $verifyTrigger }
     }
     catch {
         Write-Log "Error creating scheduled task: $($_.Exception.Message)" -Level Error
+        Write-SchedulerLog -ScheduleId $Schedule.id -ScheduleName $Schedule.name -Message "Windows task registration FAILED: $($_.Exception.Message)" -Level "ERROR"
         return @{ success = $false; error = $_.Exception.Message }
     }
 }
@@ -983,6 +1539,125 @@ function Get-ScheduledTaskStatus {
     }
     catch {
         return @{ exists = $false; error = $_.Exception.Message }
+    }
+}
+
+function Invoke-ScheduledRun {
+    <#
+    .SYNOPSIS
+        Run a saved schedule in-process. Called from Run-Schedule.ps1 (the launcher
+        registered with Windows Task Scheduler).
+    .DESCRIPTION
+        Bypasses the HTTP layer entirely: dot-source loads functions, look up the
+        schedule, run techniques via the engine with a complete-callback that
+        writes to data/execution-history.json + audit-log.json. Result: the
+        scheduled run shows up in "Recent Executions" exactly like a manual one.
+        Type label is "scheduled" (vs "manual").
+    #>
+    param([Parameter(Mandatory)][string]$ScheduleId)
+
+    $schedulesData = Get-Schedules
+    $schedule = $schedulesData.schedules | Where-Object { $_.id -eq $ScheduleId } | Select-Object -First 1
+    if (-not $schedule) {
+        Write-Log "Invoke-ScheduledRun: schedule '$ScheduleId' not found in schedules.json" -Level Error
+        return
+    }
+
+    Write-SchedulerLog -ScheduleId $ScheduleId -ScheduleName $schedule.name -Message "Scheduled execution starting" -Level "START" -Data @{
+        techniqueCount = $schedule.techniqueIds.Count
+        userId = $schedule.userId
+        runCleanup = $schedule.runCleanup
+    }
+
+    $techniques = Get-Techniques
+    $techToRun = @($techniques.techniques | Where-Object { $schedule.techniqueIds -contains $_.id })
+    if ($techToRun.Count -eq 0) {
+        Write-SchedulerLog -ScheduleId $ScheduleId -ScheduleName $schedule.name -Message "No valid techniques resolved from schedule.techniqueIds" -Level "WARNING"
+        return
+    }
+
+    # Resolve the impersonation user (if any). Session-token users fall back to
+    # current process identity, matching /api/execute/start behavior.
+    $runAsUser = $null
+    if ($schedule.userId) {
+        $usersData = Get-Users
+        $candidate = $usersData.users | Where-Object { $_.id -eq $schedule.userId } | Select-Object -First 1
+        if ($candidate -and -not $candidate.noPasswordRequired -and $candidate.password -ne '__SESSION_TOKEN__') {
+            $runAsUser = $candidate
+        }
+    }
+
+    $historyFile = Join-Path $DataPath "execution-history.json"
+    $auditFile   = Join-Path $DataPath "audit-log.json"
+    $scheduleNameCopy = $schedule.name
+    $scheduleIdCopy = $ScheduleId
+
+    # No live operator at scheduled-run time -> broadcast is a no-op. History
+    # save still goes through Save-ExecutionRecord so it shows up in the UI
+    # next time someone loads /api/reports/summary or the dashboard.
+    $broadcastCallback = { param($Message, $Type, $TechniqueId, $TechniqueName) }
+    $executionCompleteCallback = {
+        param($Execution)
+        $execRecord = @{
+            id = $Execution.id
+            type = "scheduled"
+            name = $Execution.name
+            startTime = $Execution.startTime.ToString("o")
+            endTime = $Execution.endTime.ToString("o")
+            duration = $Execution.duration
+            executedAs = $Execution.executedAs
+            impersonated = $Execution.impersonated
+            source = @{ type = "schedule"; id = $scheduleIdCopy; name = $scheduleNameCopy }
+            summary = @{
+                total = $Execution.totalCount
+                success = $Execution.successCount
+                failed = $Execution.failedCount
+                skipped = $Execution.skippedCount
+            }
+            techniques = @($Execution.results | ForEach-Object {
+                @{
+                    id = $_.techniqueId
+                    name = $_.techniqueName
+                    tactic = $_.tactic
+                    status = $_.status
+                    startTime = if ($_.startTime) { $_.startTime.ToString("o") } else { "" }
+                    endTime = if ($_.endTime) { $_.endTime.ToString("o") } else { "" }
+                    duration = $_.duration
+                    executedAs = $_.executedAs
+                    output = if ($_.output) { $_.output.Substring(0, [Math]::Min($_.output.Length, 1000)) } else { "" }
+                    error = $_.error
+                }
+            })
+        }
+        Save-ExecutionRecord -Execution $execRecord -HistoryPath $historyFile
+        Write-AuditLog -Action "execution.completed" -Details @{
+            executionId = $Execution.id
+            scheduleId = $scheduleIdCopy
+            name = $Execution.name
+            techniques = $Execution.totalCount
+            success = $Execution.successCount
+            failed = $Execution.failedCount
+        } -Initiator "schedule:$scheduleIdCopy" -AuditPath $auditFile
+    }.GetNewClosure()
+
+    Initialize-ExecutionEngine -BroadcastCallback $broadcastCallback -ExecutionCompleteCallback $executionCompleteCallback
+    $result = Start-TechniqueExecution -Techniques $techToRun -ExecutionName "Scheduled: $($schedule.name)" -RunCleanup:$schedule.runCleanup -DelayBetweenMs 1000 -RunAsUser $runAsUser
+
+    # Update lastRun -- reload first so we don't clobber concurrent edits
+    $reloaded = Get-Schedules
+    $idx = -1
+    for ($i = 0; $i -lt $reloaded.schedules.Count; $i++) {
+        if ($reloaded.schedules[$i].id -eq $ScheduleId) { $idx = $i; break }
+    }
+    if ($idx -ge 0) {
+        $reloaded.schedules[$idx].lastRun = (Get-Date -Format "o")
+        Save-Schedules -Data $reloaded | Out-Null
+    }
+
+    Write-SchedulerLog -ScheduleId $ScheduleId -ScheduleName $schedule.name -Message "Scheduled execution complete" -Level "END" -Data @{
+        total = if ($result) { $result.totalCount } else { 0 }
+        success = if ($result) { $result.successCount } else { 0 }
+        failed = if ($result) { $result.failedCount } else { 0 }
     }
 }
 
@@ -2221,14 +2896,33 @@ function Update-UserRotationProgress {
 
         $rotationData.users[$userIndex] = $user
 
-        # Update statistics
-        $rotationData.statistics.totalExecutions++
-        $rotationData.statistics.totalTTPsRun += $ttpIds.Count
-        $rotationData.statistics.lastExecutionDate = $today
+        # Statistics is a hashtable on first init but a PSCustomObject after JSON
+        # round-trip. Either form fails on `++` if a property/key is missing, so
+        # normalize to a hashtable with all required keys before mutating.
+        if ($null -eq $rotationData.statistics -or $rotationData.statistics -isnot [hashtable]) {
+            $existing = $rotationData.statistics
+            $stats = @{}
+            if ($existing) {
+                foreach ($p in $existing.PSObject.Properties) { $stats[$p.Name] = $p.Value }
+            }
+            if ($rotationData -is [hashtable]) {
+                $rotationData.statistics = $stats
+            } else {
+                $rotationData | Add-Member -NotePropertyName 'statistics' -NotePropertyValue $stats -Force
+            }
+        }
+        foreach ($k in @('totalExecutions','totalTTPsRun','cyclesCompleted')) {
+            if (-not $rotationData.statistics.ContainsKey($k)) { $rotationData.statistics[$k] = 0 }
+        }
+        if (-not $rotationData.statistics.ContainsKey('lastExecutionDate')) { $rotationData.statistics['lastExecutionDate'] = '' }
+
+        $rotationData.statistics['totalExecutions'] = [int]$rotationData.statistics['totalExecutions'] + 1
+        $rotationData.statistics['totalTTPsRun']    = [int]$rotationData.statistics['totalTTPsRun'] + $ttpIds.Count
+        $rotationData.statistics['lastExecutionDate'] = $today
 
         # Increment cycles completed in global stats if cycle just completed
         if ($phaseAfterUpdate.cycleComplete -and -not $phaseBeforeUpdate.cycleComplete) {
-            $rotationData.statistics.cyclesCompleted++
+            $rotationData.statistics['cyclesCompleted'] = [int]$rotationData.statistics['cyclesCompleted'] + 1
         }
 
         $null = Save-SmartRotation -Data $rotationData
@@ -2409,6 +3103,11 @@ function Start-SmartRotationExecution {
         $user = $usersData.users | Where-Object { $_.id -eq $userPlan.userId }
         Write-Log "User credential lookup: found=$($null -ne $user)" -Level Debug
 
+        # Capture per-user start time + a richer per-TTP record so we can write
+        # an execution-history.json entry the dashboard recognises.
+        $userExecStart = Get-Date
+        $userExecutionId = [Guid]::NewGuid().ToString()
+        $ttpHistoryDetails = @()
         $ttpResults = @()
         foreach ($ttp in $userPlan.ttps) {
             Write-Log "Executing TTP: $($ttp.id) - $($ttp.name)" -Level Debug
@@ -2434,6 +3133,19 @@ function Start-SmartRotationExecution {
                     success = $ttpSuccess
                 }
 
+                $ttpHistoryDetails += @{
+                    id = $ttp.id
+                    name = $ttp.name
+                    tactic = $ttp.tactic
+                    status = if ($execResult.status) { $execResult.status } else { 'failed' }
+                    startTime = if ($execResult.startTime) { $execResult.startTime.ToString('o') } else { '' }
+                    endTime   = if ($execResult.endTime)   { $execResult.endTime.ToString('o')   } else { '' }
+                    duration  = if ($execResult.duration)  { $execResult.duration } else { 0 }
+                    executedAs = $fullUsername
+                    output = if ($execResult.output) { ([string]$execResult.output).Substring(0, [Math]::Min(([string]$execResult.output).Length, 1000)) } else { '' }
+                    error  = if ($execResult.error) { [string]$execResult.error } else { '' }
+                }
+
                 # Small delay between TTPs
                 Start-Sleep -Milliseconds 500
             }
@@ -2451,11 +3163,66 @@ function Start-SmartRotationExecution {
                     success = $false
                     error = $_.Exception.Message
                 }
+                $ttpHistoryDetails += @{
+                    id = $ttp.id
+                    name = $ttp.name
+                    tactic = $ttp.tactic
+                    status = 'failed'
+                    startTime = ''
+                    endTime = ''
+                    duration = 0
+                    executedAs = $fullUsername
+                    output = ''
+                    error = $_.Exception.Message
+                }
             }
         }
 
-        # Update user progress
+        # Update user progress (rotation phase counters / smart-rotation.json)
         Update-UserRotationProgress -UserId $userPlan.userId -TTpsRun $userPlan.ttps -Phase $userPlan.phase
+
+        # Persist a per-user record into execution-history.json so the run
+        # surfaces in Reports -> Recent Executions just like a manual / scheduled
+        # execution. One record per user keeps `executedAs` accurate.
+        try {
+            $userExecEnd = Get-Date
+            $userSuccess = @($ttpResults | Where-Object { $_.success -eq $true }).Count
+            $userFailed  = @($ttpResults | Where-Object { $_.success -ne $true }).Count
+            $execRecord = @{
+                id = $userExecutionId
+                type = "rotation"
+                name = "Smart Rotation: $fullUsername ($phaseLabel Day $($userPlan.dayInPhase))"
+                startTime = $userExecStart.ToString('o')
+                endTime   = $userExecEnd.ToString('o')
+                duration  = ($userExecEnd - $userExecStart).TotalMilliseconds
+                executedAs = $fullUsername
+                impersonated = ($null -ne $user)
+                source = @{ type = "smart-rotation"; id = $userPlan.userId; name = $userPlan.campaign }
+                summary = @{
+                    total = $userPlan.ttpCount
+                    success = $userSuccess
+                    failed = $userFailed
+                    skipped = 0
+                }
+                techniques = $ttpHistoryDetails
+            }
+            $historyFile = Join-Path $DataPath 'execution-history.json'
+            Save-ExecutionRecord -Execution $execRecord -HistoryPath $historyFile
+            $auditFile = Join-Path $DataPath 'audit-log.json'
+            Write-AuditLog -Action 'execution.completed' -Details @{
+                executionId = $userExecutionId
+                rotationUserId = $userPlan.userId
+                executedAs = $fullUsername
+                techniques = $userPlan.ttpCount
+                success = $userSuccess
+                failed = $userFailed
+                phase = $userPlan.phase
+                campaign = $userPlan.campaign
+            } -Initiator "smart-rotation:$fullUsername" -AuditPath $auditFile
+        }
+        catch {
+            Write-Log "SmartRotation: failed to save execution-history record for $fullUsername : $($_.Exception.Message)" -Level Warning
+        }
 
         # Debug: Log each result
         Write-Log "TTP Results for $($userPlan.username):" -Level Debug
@@ -2491,7 +3258,16 @@ function Start-SmartRotationExecution {
     # Record execution in history
     Write-Log "Recording execution in history..." -Level Debug
     $rotationData = Get-SmartRotation
-    $rotationData.executionHistory += @{
+
+    # Same JSON-round-trip hazard as statistics: executionHistory may be missing
+    # on a freshly-bootstrapped smart-rotation.json, and `+=` on a missing
+    # PSCustomObject property throws "property cannot be found on this object".
+    # Normalize to a plain array we can reassign cleanly.
+    $existingHistory = @()
+    if ($rotationData.PSObject.Properties.Name -contains 'executionHistory' -and $null -ne $rotationData.executionHistory) {
+        $existingHistory = @($rotationData.executionHistory)
+    }
+    $existingHistory += @{
         date = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss")
         usersRun = $results.Count
         totalTTPs = $plan.totalTTPs
@@ -2499,8 +3275,14 @@ function Start-SmartRotationExecution {
     }
 
     # Keep only last 30 days of history
-    if ($rotationData.executionHistory.Count -gt 30) {
-        $rotationData.executionHistory = $rotationData.executionHistory | Select-Object -Last 30
+    if ($existingHistory.Count -gt 30) {
+        $existingHistory = $existingHistory | Select-Object -Last 30
+    }
+
+    if ($rotationData -is [hashtable]) {
+        $rotationData.executionHistory = @($existingHistory)
+    } else {
+        $rotationData | Add-Member -NotePropertyName 'executionHistory' -NotePropertyValue @($existingHistory) -Force
     }
 
     $null = Save-SmartRotation -Data $rotationData
@@ -2807,8 +3589,13 @@ function Test-UserCredentials {
 
         $credential = New-Object System.Management.Automation.PSCredential($fullUsername, $securePassword)
 
+        # Pin -WorkingDirectory to a universally readable local path. Otherwise Start-Process inherits
+        # MAGNETO's CWD, which on the test server is a UNC share (\\LR-NXTGEN-SIEM\Magnetov4.1Testing\...)
+        # that local users like 'magneto1' cannot traverse -- yields "The directory name is invalid."
+        $safeCwd = if ($env:SystemRoot) { $env:SystemRoot } else { 'C:\Windows' }
+
         # Try to start a process to validate credentials
-        $testResult = Start-Process -FilePath "cmd.exe" -ArgumentList "/c whoami" -Credential $credential -WindowStyle Hidden -PassThru -Wait -ErrorAction Stop
+        $testResult = Start-Process -FilePath "cmd.exe" -ArgumentList "/c whoami" -Credential $credential -WorkingDirectory $safeCwd -WindowStyle Hidden -PassThru -Wait -ErrorAction Stop
 
         return @{
             success = $true
@@ -3093,6 +3880,14 @@ function Handle-APIRequest {
     $method = $request.HttpMethod
     $path = $request.Url.LocalPath
 
+    # Feed the auto-shutdown watchdog: every /api/ call counts as browser
+    # activity. When the browser closes, these stop instantly and the
+    # watchdog triggers after GraceSeconds of silence.
+    if ($script:AutoShutdownState) {
+        $script:AutoShutdownState['LastActivity'] = Get-Date
+        $script:AutoShutdownState['Armed']        = $true
+    }
+
     # Parse query string parameters into hashtable
     $queryParams = @{}
     if ($request.Url.Query) {
@@ -3186,7 +3981,7 @@ function Handle-APIRequest {
             "^/api/health$" {
                 $responseData = @{
                     status = "healthy"
-                    version = "4.0.0"
+                    version = $script:MagnetoVersion
                     timestamp = (Get-Date -Format "o")
                 }
             }
@@ -3336,11 +4131,22 @@ function Handle-APIRequest {
                     $meRec = if ($authData -and $authData.users) {
                         @($authData.users) | Where-Object { $_.username -eq $meSession.username } | Select-Object -First 1
                     } else { $null }
+                    # If the user record was deleted or disabled by an admin
+                    # since this session was issued, drop the session and
+                    # return 401 so the browser is forced to re-authenticate.
+                    if (-not $meRec -or [bool]$meRec.disabled) {
+                        try { Remove-Session -Token $meToken } catch {
+                            Write-Log "Failed to remove session for deleted/disabled user $($meSession.username): $($_.Exception.Message)" -Level Warning
+                        }
+                        $statusCode = 401
+                        $responseData = @{ error = 'Account no longer active' }
+                        break
+                    }
                     $statusCode = 200
                     $responseData = @{
                         username  = $meSession.username
                         role      = $meSession.role
-                        lastLogin = if ($meRec) { $meRec.lastLogin } else { $null }
+                        lastLogin = $meRec.lastLogin
                     }
                 } else {
                     $statusCode = 401
@@ -3349,8 +4155,206 @@ function Handle-APIRequest {
                 break
             }
 
+            # Admin-only management of MAGNETO login accounts (auth.json users).
+            # GET = list users without password hashes; POST = create new user.
+            "^/api/auth/users$" {
+                if (-not $script:CurrentSession -or $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break
+                }
+
+                $authPath = Join-Path $DataPath 'auth.json'
+                $authData = Read-JsonFile -Path $authPath
+                if (-not $authData -or -not $authData.users) {
+                    $authData = @{ users = @() }
+                }
+
+                if ($method -eq 'GET') {
+                    $sanitized = @(@($authData.users) | ForEach-Object {
+                        @{
+                            username           = $_.username
+                            role               = $_.role
+                            disabled           = [bool]$_.disabled
+                            lastLogin          = $_.lastLogin
+                            mustChangePassword = [bool]$_.mustChangePassword
+                            createdBy          = $_.createdBy
+                            createdAt          = $_.createdAt
+                        }
+                    })
+                    $statusCode = 200
+                    $responseData = @{ users = $sanitized }
+                    break
+                }
+
+                if ($method -eq 'POST') {
+                    if (-not $body) {
+                        $statusCode = 400
+                        $responseData = @{ error = 'Request body required (JSON: username, password, role)' }
+                        break
+                    }
+                    $newUsername = $body.username
+                    $newPassword = $body.password
+                    $newRole     = $body.role
+
+                    if (-not $newUsername -or $newUsername -notmatch '^[A-Za-z0-9_-]{3,32}$') {
+                        $statusCode = 400
+                        $responseData = @{ error = 'Username must be 3-32 chars (A-Z, a-z, 0-9, _, -)' }
+                        break
+                    }
+                    if (-not $newPassword -or $newPassword.Length -lt 8) {
+                        $statusCode = 400
+                        $responseData = @{ error = 'Password must be at least 8 characters' }
+                        break
+                    }
+                    if ($newRole -notin @('admin','operator')) {
+                        $statusCode = 400
+                        $responseData = @{ error = "Role must be 'admin' or 'operator'" }
+                        break
+                    }
+                    if (@($authData.users) | Where-Object { $_.username -ieq $newUsername }) {
+                        $statusCode = 409
+                        $responseData = @{ error = "User '$newUsername' already exists" }
+                        break
+                    }
+
+                    $hashRec = ConvertTo-PasswordHash -PlaintextPassword $newPassword
+                    $newUser = [ordered]@{
+                        username           = $newUsername
+                        role               = $newRole
+                        hash               = $hashRec
+                        disabled           = $false
+                        lastLogin          = $null
+                        mustChangePassword = $false
+                        createdBy          = $script:CurrentSession.username
+                        createdAt          = (Get-Date -Format 'o')
+                    }
+                    $authData.users = @($authData.users) + $newUser
+                    Write-JsonFile -Path $authPath -Data $authData -Depth 6 | Out-Null
+
+                    $auditPath = Join-Path $DataPath 'audit-log.json'
+                    try {
+                        Write-AuditLog -Action 'user.create' -Details @{
+                            actor  = $script:CurrentSession.username
+                            target = $newUsername
+                            role   = $newRole
+                        } -AuditPath $auditPath
+                    } catch {
+                        Write-Log "Audit write failed for user.create $($newUsername): $($_.Exception.Message)" -Level Warning
+                    }
+                    Write-Log "Login user created: $newUsername (role=$newRole) by $($script:CurrentSession.username)" -Level Info
+
+                    $statusCode = 201
+                    $responseData = @{
+                        success = $true
+                        user = @{
+                            username = $newUsername
+                            role     = $newRole
+                            disabled = $false
+                            lastLogin = $null
+                        }
+                    }
+                    break
+                }
+
+                $statusCode = 405
+                $responseData = @{ error = 'Method not allowed' }
+                break
+            }
+
+            # DELETE a login user. Admin-only. Refuses to delete the last
+            # enabled admin (lockout protection). Active sessions for the
+            # deleted user are dropped immediately.
+            "^/api/auth/users/[^/]+$" {
+                if (-not $script:CurrentSession -or $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break
+                }
+                if ($method -ne 'DELETE') {
+                    $statusCode = 405
+                    $responseData = @{ error = 'Method not allowed' }
+                    break
+                }
+                $targetUser = ($path -split '/')[-1]
+                if (-not $targetUser) {
+                    $statusCode = 400
+                    $responseData = @{ error = 'Username required in path' }
+                    break
+                }
+                # URL-decode in case the username has encoded characters
+                $targetUser = [System.Uri]::UnescapeDataString($targetUser)
+
+                $authPath = Join-Path $DataPath 'auth.json'
+                $authData = Read-JsonFile -Path $authPath
+                if (-not $authData -or -not $authData.users) {
+                    $statusCode = 404
+                    $responseData = @{ error = "User '$targetUser' not found" }
+                    break
+                }
+                $existing = @($authData.users) | Where-Object { $_.username -ieq $targetUser } | Select-Object -First 1
+                if (-not $existing) {
+                    $statusCode = 404
+                    $responseData = @{ error = "User '$targetUser' not found" }
+                    break
+                }
+
+                $enabledAdmins = @($authData.users) | Where-Object {
+                    $_.role -eq 'admin' -and -not ([bool]$_.disabled)
+                }
+                if ($existing.role -eq 'admin' -and $enabledAdmins.Count -le 1) {
+                    $statusCode = 409
+                    $responseData = @{ error = 'Cannot delete the last enabled admin -- create another admin first' }
+                    break
+                }
+
+                $authData.users = @(@($authData.users) | Where-Object { $_.username -ine $targetUser })
+                Write-JsonFile -Path $authPath -Data $authData -Depth 6 | Out-Null
+
+                $droppedSessions = 0
+                if (Get-Command -Name Remove-SessionsByUsername -ErrorAction SilentlyContinue) {
+                    try {
+                        $droppedSessions = Remove-SessionsByUsername -Username $existing.username
+                    } catch {
+                        Write-Log "Failed to drop sessions for deleted user '$($existing.username)': $($_.Exception.Message)" -Level Warning
+                    }
+                }
+
+                $auditPath = Join-Path $DataPath 'audit-log.json'
+                try {
+                    Write-AuditLog -Action 'user.delete' -Details @{
+                        actor            = $script:CurrentSession.username
+                        target           = $existing.username
+                        role             = $existing.role
+                        droppedSessions  = $droppedSessions
+                    } -AuditPath $auditPath
+                } catch {
+                    Write-Log "Audit write failed for user.delete $($existing.username): $($_.Exception.Message)" -Level Warning
+                }
+                Write-Log "Login user deleted: $($existing.username) by $($script:CurrentSession.username) (sessions dropped: $droppedSessions)" -Level Info
+
+                $statusCode = 200
+                $responseData = @{
+                    success         = $true
+                    deleted         = $existing.username
+                    droppedSessions = $droppedSessions
+                }
+                break
+            }
+
             # Status endpoint
             "^/api/status$" {
+                # 5s cache so the dashboard heartbeat + initial-load batch do
+                # not re-read 5 JSON files on every hit. Counts being 5s stale
+                # is acceptable for indicator cards.
+                $cacheAge = if ($script:StatusCache.Data) {
+                    ((Get-Date) - $script:StatusCache.Timestamp).TotalSeconds
+                } else { [double]::MaxValue }
+                if ($cacheAge -lt $script:StatusCacheTtlSeconds) {
+                    $responseData = $script:StatusCache.Data
+                    break
+                }
+
                 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
                 # Get SIEM logging status
@@ -3367,11 +4371,16 @@ function Handle-APIRequest {
                 $techniquesData = Get-Techniques
                 $techniqueCount = if ($techniquesData.techniques) { $techniquesData.techniques.Count } else { 0 }
 
-                # Get active schedules count
+                # Get active schedules count -- includes manual schedules in
+                # schedules.json AND Smart Rotation (counted as +1 when enabled)
+                # so the dashboard "Schedules: N active" reflects every recurring
+                # job MAGNETO is going to fire, not just the manual ones.
                 $schedulesData = Get-Schedules
-                $activeSchedules = if ($schedulesData.schedules) {
+                $manualActive = if ($schedulesData.schedules) {
                     @($schedulesData.schedules | Where-Object { $_.enabled }).Count
                 } else { 0 }
+                $rotationActive = if ($rotationData -and $rotationData.enabled) { 1 } else { 0 }
+                $activeSchedules = $manualActive + $rotationActive
 
                 # Get last execution info
                 $historyPath = Join-Path $DataPath "execution-history.json"
@@ -3395,7 +4404,7 @@ function Handle-APIRequest {
 
                 $responseData = @{
                     status = "online"
-                    version = "4.0.0"
+                    version = $script:MagnetoVersion
                     platform = @{
                         hostname = $env:COMPUTERNAME
                         user = $env:USERNAME
@@ -3421,9 +4430,15 @@ function Handle-APIRequest {
                         techniqueCount = $techniqueCount
                         activeSchedules = $activeSchedules
                         lastExecution = $lastExecution
+                        updateAvailable = [bool]$script:UpdateCheck.UpdateAvailable
+                        latestVersion   = $script:UpdateCheck.LatestVersion
                     }
                     timestamp = (Get-Date -Format "o")
                 }
+                # Populate the 5s cache so the next heartbeat skips the 5
+                # JSON reads + SIEM probe above.
+                $script:StatusCache.Data = $responseData
+                $script:StatusCache.Timestamp = Get-Date
             }
 
             # POST /api/server/restart - Restart the server
@@ -3443,6 +4458,212 @@ function Handle-APIRequest {
                 }
             }
 
+            # GET /api/system/version - lightweight version probe (no auth needed
+            # path-wise -- still goes through prelude which lets authenticated
+            # callers through; matches the rest of the API).
+            "^/api/system/version$" {
+                if ($method -eq "GET") {
+                    $responseData = @{
+                        current         = $script:MagnetoVersion
+                        latestVersion   = $script:UpdateCheck.LatestVersion
+                        updateAvailable = [bool]$script:UpdateCheck.UpdateAvailable
+                        lastChecked     = if ($script:UpdateCheck.LastChecked -ne [DateTime]::MinValue) {
+                                              $script:UpdateCheck.LastChecked.ToString('o')
+                                          } else { $null }
+                        releaseNotes    = $script:UpdateCheck.ReleaseNotes
+                        releaseUrl      = $script:UpdateCheck.LatestUrl
+                        assetName       = $script:UpdateCheck.AssetName
+                        sha256          = $script:UpdateCheck.Sha256
+                        lastError       = $script:UpdateCheck.LastError
+                        repo            = "$($script:UpdateRepoOwner)/$($script:UpdateRepoName)"
+                    }
+                }
+            }
+
+            # POST /api/system/update/check - force a fresh GitHub poll (admin-only)
+            "^/api/system/update/check$" {
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break
+                }
+                if ($method -eq "POST") {
+                    $null = Invoke-MagnetoUpdateCheck -Force
+                    $responseData = @{
+                        success         = $true
+                        current         = $script:MagnetoVersion
+                        latestVersion   = $script:UpdateCheck.LatestVersion
+                        updateAvailable = [bool]$script:UpdateCheck.UpdateAvailable
+                        lastChecked     = $script:UpdateCheck.LastChecked.ToString('o')
+                        releaseNotes    = $script:UpdateCheck.ReleaseNotes
+                        releaseUrl      = $script:UpdateCheck.LatestUrl
+                        assetName       = $script:UpdateCheck.AssetName
+                        sha256          = $script:UpdateCheck.Sha256
+                        lastError       = $script:UpdateCheck.LastError
+                    }
+                }
+            }
+
+            # POST /api/system/update/install - download + verify + extract +
+            # backup + spawn Apply-Update.ps1 + schedule own shutdown.
+            "^/api/system/update/install$" {
+                if ($script:CurrentSession -and $script:CurrentSession.role -ne 'admin') {
+                    $statusCode = 403
+                    $responseData = @{ error = 'forbidden'; required = 'admin' }
+                    break
+                }
+                if ($method -eq "POST") {
+                    if ($script:UpdateInProgress) {
+                        $statusCode = 409
+                        $responseData = @{ success = $false; error = 'Update already in progress' }
+                        break
+                    }
+                    if ($script:CurrentExecutionStop -and $script:AsyncExecutions.Count -gt 0) {
+                        # Reap completed async runspaces opportunistically; if any are still
+                        # running the operator must wait for them or stop them first.
+                        $null = Invoke-RunspaceReaper -Registry $script:AsyncExecutions -Label 'async execution'
+                        if ($script:AsyncExecutions.Count -gt 0) {
+                            $statusCode = 409
+                            $responseData = @{ success = $false; error = 'An execution is currently running. Stop it before applying an update.' }
+                            break
+                        }
+                    }
+                    # Refresh in case an admin clicked Install before clicking Check.
+                    $null = Invoke-MagnetoUpdateCheck -Force
+                    $cache = $script:UpdateCheck
+                    if (-not $cache.AssetUrl) {
+                        $statusCode = 502
+                        $responseData = @{ success = $false; error = "No release asset available. lastError=$($cache.LastError)" }
+                        break
+                    }
+                    if (-not $cache.Sha256) {
+                        $statusCode = 502
+                        $responseData = @{ success = $false; error = 'Release notes do not contain a SHA256 line; refusing to install unsigned asset.' }
+                        break
+                    }
+                    if (-not $cache.UpdateAvailable) {
+                        $statusCode = 200
+                        $responseData = @{ success = $true; message = "Already on latest version $($script:MagnetoVersion)" ; restartIn = 0 }
+                        break
+                    }
+
+                    $script:UpdateInProgress = $true
+                    Write-Log "Update install requested by $($script:CurrentSession.username) -- target version $($cache.LatestVersion)" -Level Warning
+                    Write-AuditLog -Action 'update.install.start' -Details @{
+                        from = $script:MagnetoVersion
+                        to   = $cache.LatestVersion
+                        url  = $cache.AssetUrl
+                        sha256 = $cache.Sha256
+                    } -Initiator $script:CurrentSession.username
+
+                    # Synchronous portion: download + verify + extract + backup +
+                    # write Apply-Update.ps1. The cross-process portion (file
+                    # copy + relaunch) runs in a detached helper process.
+                    $stagingRoot = Join-Path $PSScriptRoot 'update-staging'
+                    if (Test-Path $stagingRoot) { Remove-Item $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue }
+                    New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+
+                    $assetName = if ($cache.AssetName) { $cache.AssetName } else { "magneto-v$($cache.LatestVersion).zip" }
+                    $zipPath   = Join-Path $stagingRoot $assetName
+
+                    try {
+                        try {
+                            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor `
+                                [Net.ServicePointManager]::SecurityProtocol
+                        }
+                        # INTENTIONAL-SWALLOW: TLS may already be pinned by group policy
+                        catch { }
+                        $headers = @{ 'User-Agent' = "MAGNETO/$($script:MagnetoVersion)" }
+                        Invoke-WebRequest -Uri $cache.AssetUrl -Headers $headers -OutFile $zipPath -TimeoutSec 60 -ErrorAction Stop -UseBasicParsing
+                    }
+                    catch {
+                        $script:UpdateInProgress = $false
+                        Remove-Item $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+                        Write-AuditLog -Action 'update.install.failed' -Details @{ stage='download'; error=$_.Exception.Message } -Initiator $script:CurrentSession.username
+                        $statusCode = 502
+                        $responseData = @{ success = $false; error = "Download failed: $($_.Exception.Message)" }
+                        break
+                    }
+
+                    $actualSha = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToUpperInvariant()
+                    if ($actualSha -ne $cache.Sha256.ToUpperInvariant()) {
+                        $script:UpdateInProgress = $false
+                        Remove-Item $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+                        Write-Log "Update SHA256 mismatch: expected=$($cache.Sha256) actual=$actualSha" -Level Error
+                        Write-AuditLog -Action 'update.install.failed' -Details @{ stage='sha256'; expected=$cache.Sha256; actual=$actualSha } -Initiator $script:CurrentSession.username
+                        $statusCode = 502
+                        $responseData = @{ success = $false; error = "SHA256 mismatch -- expected $($cache.Sha256), got $actualSha. Refusing to install." }
+                        break
+                    }
+
+                    $extractDir = Join-Path $stagingRoot 'extracted'
+                    try {
+                        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force -ErrorAction Stop
+                    }
+                    catch {
+                        $script:UpdateInProgress = $false
+                        Remove-Item $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+                        Write-AuditLog -Action 'update.install.failed' -Details @{ stage='extract'; error=$_.Exception.Message } -Initiator $script:CurrentSession.username
+                        $statusCode = 500
+                        $responseData = @{ success = $false; error = "Extract failed: $($_.Exception.Message)" }
+                        break
+                    }
+
+                    # Sanity check: the extracted tree must contain MagnetoWebService.ps1
+                    # (possibly inside a versioned subfolder, which is normal).
+                    $sanity = Get-ChildItem -Path $extractDir -Recurse -Filter 'MagnetoWebService.ps1' -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if (-not $sanity) {
+                        $script:UpdateInProgress = $false
+                        Remove-Item $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+                        Write-AuditLog -Action 'update.install.failed' -Details @{ stage='sanity'; error='extracted zip has no MagnetoWebService.ps1' } -Initiator $script:CurrentSession.username
+                        $statusCode = 502
+                        $responseData = @{ success = $false; error = 'Extracted zip does not contain MagnetoWebService.ps1; aborting.' }
+                        break
+                    }
+
+                    # Backup current install (best-effort -- do not block update on backup failure).
+                    try {
+                        $null = Save-MagnetoBackup
+                    } catch {
+                        Write-Log "Save-MagnetoBackup non-fatal failure: $($_.Exception.Message)" -Level Warning
+                    }
+
+                    # Generate the helper script.
+                    $applyScript = Write-MagnetoUpdateApplier -TargetDir $PSScriptRoot -SourceDir $extractDir -Version $cache.LatestVersion
+
+                    # Spawn helper detached. We pass arguments explicitly even though they
+                    # are also baked into the script's defaults -- belt and suspenders.
+                    $psArgs = @(
+                        '-NoProfile',
+                        '-ExecutionPolicy','Bypass',
+                        '-WindowStyle','Hidden',
+                        '-File', "`"$applyScript`"",
+                        '-TargetDir', "`"$PSScriptRoot`"",
+                        '-SourceDir', "`"$extractDir`"",
+                        '-Version', "`"$($cache.LatestVersion)`"",
+                        '-ParentPid', "$PID"
+                    )
+                    Start-Process -FilePath 'powershell.exe' -ArgumentList $psArgs -WindowStyle Hidden | Out-Null
+
+                    Write-AuditLog -Action 'update.install.staged' -Details @{
+                        from = $script:MagnetoVersion
+                        to   = $cache.LatestVersion
+                        helper = $applyScript
+                    } -Initiator $script:CurrentSession.username
+
+                    $script:UpdateRestartRequested = $true
+                    $script:UpdateInProgress = $false
+
+                    $responseData = @{
+                        success     = $true
+                        message     = "Update staged. MAGNETO will exit; the helper will apply the update and re-launch automatically."
+                        from        = $script:MagnetoVersion
+                        to          = $cache.LatestVersion
+                        restartIn   = 5
+                    }
+                }
+            }
+
             # POST /api/system/factory-reset - Clear all user data for clean distribution
             "^/api/system/factory-reset$" {
                 # Phase 3 AUTH-07 admin guard: only admin role may factory-reset.
@@ -3458,11 +4679,19 @@ function Handle-APIRequest {
                     $cleared = @()
 
                     try {
-                        # PRESERVE: auth.json is NEVER cleared by factory-reset (Pitfall 4:
-                        # pre-auth RCE window). If you add new clearable files here, the
-                        # NEVER-CLEAR list is: auth.json
-                        # Covered by tests/Integration/FactoryResetPreservation.Tests.ps1 --
-                        # tampering will fire that test.
+                        # Clear auth.json -- factory-reset treats "reset" as genuinely clean-
+                        # slate. The admin must re-bootstrap via `MagnetoWebService.ps1
+                        # -CreateAdmin` before Start_Magneto.bat will relaunch (the admin-
+                        # exists precondition at bat line 131 blocks launch until an admin
+                        # user exists in data/auth.json). Covered by
+                        # tests/Integration/FactoryResetPreservation.Tests.ps1 -- that test
+                        # asserts auth.json IS cleared post-reset.
+                        $authFile = Join-Path $DataPath "auth.json"
+                        if (Test-Path $authFile) {
+                            Write-JsonFile -Path $authFile -Data @{ users = @() } -Depth 6 | Out-Null
+                            $cleared += "Admin Account"
+                        }
+
                         # Clear users.json
                         $usersFile = Join-Path $DataPath "users.json"
                         if (Test-Path $usersFile) {
@@ -3557,8 +4786,9 @@ function Handle-APIRequest {
                         }
 
                         # Phase 3 SESS-04: clear sessions.json so every user must
-                        # re-login after factory-reset. auth.json is NOT in this list --
-                        # see the PRESERVE comment at the top of this handler.
+                        # re-login after factory-reset. auth.json is also cleared (at top
+                        # of this handler) so the admin must also re-bootstrap via
+                        # `MagnetoWebService.ps1 -CreateAdmin` before next launch.
                         $sessionsFile = Join-Path $DataPath "sessions.json"
                         if (Test-Path $sessionsFile) {
                             Write-JsonFile -Path $sessionsFile -Data @{ sessions = @() } -Depth 5 | Out-Null
@@ -3720,6 +4950,10 @@ function Handle-APIRequest {
                         id = $body.id
                         name = $body.name
                         tactic = $body.tactic
+                        # Provenance tag -- "custom" marks this entry as operator-authored
+                        # so the in-app updater knows to preserve it across version upgrades.
+                        # Built-in TTPs shipped with releases carry source = "built-in".
+                        source = 'custom'
                         description = $body.description
                         command = $body.command
                         cleanupCommand = $body.cleanupCommand
@@ -3752,10 +4986,24 @@ function Handle-APIRequest {
                 elseif ($method -eq "PUT") {
                     if ($technique) {
                         $index = [array]::IndexOf($data.techniques.id, $techniqueId)
+                        # Preserve provenance: keep existing source if any; if missing AND
+                        # the id is in the built-in catalogue treat as built-in; otherwise
+                        # default to 'custom'. Operator edits to a built-in TTP keep the
+                        # built-in tag so the updater can still replace it on next release.
+                        $resolvedSource = if ($body.source) {
+                            $body.source
+                        } elseif ($technique.source) {
+                            $technique.source
+                        } elseif (Test-MagnetoBuiltinTtpId -Id $techniqueId) {
+                            'built-in'
+                        } else {
+                            'custom'
+                        }
                         $updated = @{
                             id = if ($body.id) { $body.id } else { $technique.id }
                             name = if ($body.name) { $body.name } else { $technique.name }
                             tactic = if ($body.tactic) { $body.tactic } else { $technique.tactic }
+                            source = $resolvedSource
                             description = if ($null -ne $body.description) { $body.description } else { $technique.description }
                             command = if ($body.command) { $body.command } else { $technique.command }
                             cleanupCommand = if ($null -ne $body.cleanupCommand) { $body.cleanupCommand } else { $technique.cleanupCommand }
@@ -4104,10 +5352,9 @@ function Handle-APIRequest {
                         techniqueIds = @($body.techniqueIds)  # Pre-resolved technique IDs
                         userId = $body.userId
                         runCleanup = if ($null -ne $body.runCleanup) { [bool]$body.runCleanup } else { $true }
-                        scheduleType = $body.scheduleType  # 'once', 'daily', 'weekly', 'monthly'
+                        scheduleType = $body.scheduleType  # 'once', 'daily', 'weekly'
                         startDateTime = $body.startDateTime
                         daysOfWeek = @($body.daysOfWeek)  # For weekly: 0=Sun, 1=Mon, etc.
-                        dayOfMonth = $body.dayOfMonth  # For monthly
                         createdAt = (Get-Date -Format "o")
                         lastRun = $null
                     }
@@ -4184,21 +5431,26 @@ function Handle-APIRequest {
                         if ($body.scheduleType) { $existingSchedule.scheduleType = $body.scheduleType }
                         if ($body.startDateTime) { $existingSchedule.startDateTime = $body.startDateTime }
                         if ($body.daysOfWeek) { $existingSchedule.daysOfWeek = @($body.daysOfWeek) }
-                        if ($body.dayOfMonth) { $existingSchedule.dayOfMonth = $body.dayOfMonth }
 
                         $existingSchedule.updatedAt = (Get-Date -Format "o")
 
                         $schedulesData.schedules[$scheduleIndex] = $existingSchedule
                         Save-Schedules -Data $schedulesData
 
-                        # Update Windows Scheduled Task
+                        # Update Windows Scheduled Task -- surface result so silent failures stop pretending to succeed
                         $taskResult = Update-MagnetoScheduledTask -Schedule $existingSchedule
 
                         $responseData = @{
-                            success = $true
+                            success = [bool]$taskResult.success
                             schedule = $existingSchedule
-                            message = "Schedule updated"
+                            taskUpdate = $taskResult
+                            message = if ($taskResult.success) {
+                                "Schedule updated. Windows task boundary: $($taskResult.registeredStartBoundary)"
+                            } else {
+                                "Schedule saved to JSON, but Windows task update FAILED: $($taskResult.error)"
+                            }
                         }
+                        if (-not $taskResult.success) { $statusCode = 500 }
                     } else {
                         $statusCode = 404
                         $responseData = @{ error = "Schedule not found"; success = $false }
@@ -4364,6 +5616,7 @@ function Handle-APIRequest {
                 }
                 elseif ($method -eq "PUT") {
                     $rotationData = Get-SmartRotation
+                    $previousExecTime = $rotationData.config.dailyExecutionTime
                     # Update config
                     if ($body.config) {
                         $rotationData.config = $body.config
@@ -4375,7 +5628,36 @@ function Handle-APIRequest {
                         $rotationData.campaignRotation = $body.campaignRotation
                     }
                     $null = Save-SmartRotation -Data $rotationData
-                    $responseData = @{ success = $true; data = $rotationData }
+
+                    # If rotation is enabled, re-register the Windows task so it picks up
+                    # the new dailyExecutionTime / randomization. Saving JSON alone never
+                    # changed Windows Task Scheduler -- "Configure" looked like a no-op.
+                    $taskUpdate = $null
+                    if ($rotationData.enabled) {
+                        try {
+                            $taskOutput = @(New-SmartRotationTask)
+                            $taskUpdate = $taskOutput[-1]
+                            $newTime = $rotationData.config.dailyExecutionTime
+                            Write-SchedulerLog -ScheduleId "smart-rotation" -ScheduleName "MAGNETO_SmartRotation" -Message "Config updated. dailyExecutionTime: $previousExecTime -> $newTime  taskResult.success=$($taskUpdate.success)" -Level "INFO"
+                        } catch {
+                            $taskUpdate = @{ success = $false; error = $_.Exception.Message }
+                            Write-SchedulerLog -ScheduleId "smart-rotation" -ScheduleName "MAGNETO_SmartRotation" -Message "Re-register FAILED on config save: $($_.Exception.Message)" -Level "ERROR"
+                        }
+                    }
+
+                    $responseData = @{
+                        success = if ($null -eq $taskUpdate) { $true } else { [bool]$taskUpdate.success }
+                        data = $rotationData
+                        taskUpdate = $taskUpdate
+                        message = if ($null -eq $taskUpdate) {
+                            "Config saved. (Rotation disabled -- Windows task not touched.)"
+                        } elseif ($taskUpdate.success) {
+                            "Config saved. Windows task re-registered for $($rotationData.config.dailyExecutionTime)."
+                        } else {
+                            "Config saved to JSON, but Windows task re-register FAILED: $($taskUpdate.error)"
+                        }
+                    }
+                    if ($null -ne $taskUpdate -and -not $taskUpdate.success) { $statusCode = 500 }
                 }
             }
 
@@ -5116,11 +6398,210 @@ if ($NoServer) {
     return
 }
 
+# Cold-start mode: Start_Magneto.bat passes -ColdStart on the first
+# double-click (not on exit-1001 warm restarts). Clear sessions.json BEFORE
+# Initialize-SessionStore so every cold launch requires re-authentication.
+# The in-app Restart button path (exit 1001) does NOT pass -ColdStart, so
+# active logins survive the internal restart -- SESS-04 guarantee preserved
+# for that path.
+if ($ColdStart) {
+    $sessionsFile = Join-Path $DataPath 'sessions.json'
+    if (Test-Path $sessionsFile) {
+        Write-JsonFile -Path $sessionsFile -Data @{ sessions = @() } -Depth 5 | Out-Null
+        Write-Log "ColdStart: cleared sessions.json -- all users must re-login" -Level Info
+    }
+}
+
 # Phase 3 SESS-04: hydrate session registry from disk BEFORE the listener
 # starts so exit-1001 restart preserves logins. Per KU-f, runspaces spawned
 # after listener start cannot see script-scope registry additions -- so
 # this must land before any listener activity.
 Initialize-SessionStore -DataPath $DataPath
+
+function Invoke-MagnetoOrphanSweep {
+    # Removes residual simulation artifacts from prior MAGNETO runs that may
+    # have crashed before cleanup (or were left by older TTP versions whose
+    # wildcard cleanups -- e.g. "schtasks /delete /tn MagnetoTask_*" -- did
+    # not actually work). Runs once at startup; never throws.
+    $removed = @{ tasks = 0; services = 0; exclusions = 0; users = 0 }
+
+    try {
+        $orphanTasks = Get-ScheduledTask -ErrorAction SilentlyContinue |
+            Where-Object { $_.TaskName -like 'MagnetoTask_*' -or $_.TaskName -like 'MAGNETO_SIM*' }
+        foreach ($task in $orphanTasks) {
+            try {
+                Unregister-ScheduledTask -TaskName $task.TaskName -Confirm:$false -ErrorAction Stop
+                Write-Log "OrphanSweep: removed scheduled task '$($task.TaskName)'" -Level Info
+                $removed.tasks++
+            } catch {
+                Write-Log "OrphanSweep: failed to remove task '$($task.TaskName)': $($_.Exception.Message)" -Level Warning
+            }
+        }
+    } catch {
+        Write-Log "OrphanSweep: scheduled task enumeration failed: $($_.Exception.Message)" -Level Warning
+    }
+
+    try {
+        $orphanServices = Get-Service -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like 'MagnetoSvc_*' -or $_.Name -like 'MAGNETO_SIM*' }
+        foreach ($svc in $orphanServices) {
+            try {
+                if ($svc.Status -eq 'Running') {
+                    Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
+                }
+                $null = & sc.exe delete $svc.Name 2>&1
+                Write-Log "OrphanSweep: removed service '$($svc.Name)'" -Level Info
+                $removed.services++
+            } catch {
+                Write-Log "OrphanSweep: failed to remove service '$($svc.Name)': $($_.Exception.Message)" -Level Warning
+            }
+        }
+    } catch {
+        Write-Log "OrphanSweep: service enumeration failed: $($_.Exception.Message)" -Level Warning
+    }
+
+    try {
+        $prefs = Get-MpPreference -ErrorAction SilentlyContinue
+        if ($prefs -and $prefs.ExclusionPath -contains 'C:\Windows\Temp\MagnetoTest') {
+            Remove-MpPreference -ExclusionPath 'C:\Windows\Temp\MagnetoTest' -ErrorAction Stop
+            Write-Log "OrphanSweep: removed Defender exclusion 'C:\Windows\Temp\MagnetoTest'" -Level Info
+            $removed.exclusions++
+        }
+    } catch {
+        Write-Log "OrphanSweep: Defender exclusion check failed: $($_.Exception.Message)" -Level Warning
+    }
+
+    # Local users created by simulation TTPs (T1136.001 + any operator-authored
+    # account-creating TTP) are tagged with the MAGNETO-SIM-CLEANUP-MARKER token
+    # in the account Description. Reap any such accounts left over by crashed
+    # runs or runCleanup=$false executions. Description marker is opt-in so we
+    # will never touch the legitimate impersonation-pool accounts created by
+    # scripts/Create-MagnetoUsers.ps1 (those have a different description text).
+    try {
+        $orphanUsers = Get-LocalUser -ErrorAction SilentlyContinue |
+            Where-Object { $_.Description -and $_.Description.Contains('MAGNETO-SIM-CLEANUP-MARKER') }
+        foreach ($u in $orphanUsers) {
+            try {
+                Remove-LocalUser -Name $u.Name -ErrorAction Stop
+                Write-Log "OrphanSweep: removed orphan local user '$($u.Name)' (sim-cleanup marker matched)" -Level Info
+                $removed.users++
+            } catch {
+                Write-Log "OrphanSweep: failed to remove orphan user '$($u.Name)': $($_.Exception.Message)" -Level Warning
+            }
+        }
+    } catch {
+        Write-Log "OrphanSweep: local user enumeration failed: $($_.Exception.Message)" -Level Warning
+    }
+
+    if (($removed.tasks + $removed.services + $removed.exclusions + $removed.users) -eq 0) {
+        Write-Log "OrphanSweep: no residual simulation artifacts found" -Level Info
+    } else {
+        Write-Log "OrphanSweep complete: tasks=$($removed.tasks) services=$($removed.services) exclusions=$($removed.exclusions) users=$($removed.users)" -Level Info
+    }
+}
+
+function Invoke-ScheduledTaskMigration {
+    # Pre-launcher schedules embedded a "POST localhost /api/execute/start" body
+    # that fails with 401 under the Phase 3 auth prelude. Re-register every
+    # enabled schedule once at startup so its Windows task picks up the new
+    # launcher-script action. Idempotent: New-MagnetoScheduledTask drops the
+    # existing task and recreates it.
+    try {
+        $data = Get-Schedules
+        $migrated = 0
+        foreach ($schedule in @($data.schedules)) {
+            if ($schedule.enabled) {
+                $r = New-MagnetoScheduledTask -Schedule $schedule
+                if ($r -and $r.success) { $migrated++ }
+            }
+        }
+        if ($migrated -gt 0) {
+            Write-Log "ScheduledTaskMigration: re-registered $migrated enabled schedule(s) onto launcher-script action" -Level Info
+        }
+    }
+    catch {
+        Write-Log "ScheduledTaskMigration failed: $($_.Exception.Message)" -Level Warning
+    }
+}
+
+Invoke-MagnetoOrphanSweep
+Invoke-ScheduledTaskMigration
+
+# Background update check at startup -- fire-and-forget so the listener bind
+# below is not blocked on GitHub network latency. Result lands in
+# $script:UpdateCheck and is surfaced by /api/status.updateAvailable +
+# the Settings -> Updates panel. Skipped under MAGNETO_TEST_MODE so the
+# Pester suite does not phone home.
+if ($env:MAGNETO_TEST_MODE -ne '1') {
+    try {
+        $updateRunspace = New-MagnetoRunspace -HelpersPath $script:RunspaceHelpersPath -SharedVariables @{
+            UpdateCheck    = $script:UpdateCheck
+            RepoOwner      = $script:UpdateRepoOwner
+            RepoName       = $script:UpdateRepoName
+            CurrentVersion = $script:MagnetoVersion
+        }
+        $updateChecker = [powershell]::Create()
+        $updateChecker.Runspace = $updateRunspace
+        $null = $updateChecker.AddScript({
+            try {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor `
+                    [Net.ServicePointManager]::SecurityProtocol
+            }
+            # INTENTIONAL-SWALLOW: TLS may already be pinned by group policy
+            catch { }
+            try {
+                $apiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
+                $headers = @{
+                    'User-Agent' = "MAGNETO/$CurrentVersion"
+                    'Accept'     = 'application/vnd.github+json'
+                }
+                $resp = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 5 -ErrorAction Stop
+                $tag = [string]$resp.tag_name
+                $latest = $tag
+                if ($latest.StartsWith('v') -or $latest.StartsWith('V')) { $latest = $latest.Substring(1) }
+                $asset = $null
+                if ($resp.assets) {
+                    $asset = $resp.assets | Where-Object { $_.name -like '*.zip' } | Select-Object -First 1
+                }
+                $sha256 = $null
+                if ($resp.body) {
+                    $m = [regex]::Match([string]$resp.body, '(?im)^\s*sha[\s-]*256\s*:\s*([0-9a-fA-F]{64})\s*$')
+                    if ($m.Success) { $sha256 = $m.Groups[1].Value.ToUpperInvariant() }
+                }
+                # Inline version compare to avoid depending on Compare-MagnetoVersion in this runspace.
+                $aParts = ($CurrentVersion -split '\.')
+                $bParts = ($latest -split '\.')
+                $cmp = 0
+                $max = [Math]::Max($aParts.Length, $bParts.Length)
+                for ($i = 0; $i -lt $max; $i++) {
+                    $ai = 0; $bi = 0
+                    if ($i -lt $aParts.Length) { [int]::TryParse($aParts[$i], [ref]$ai) | Out-Null }
+                    if ($i -lt $bParts.Length) { [int]::TryParse($bParts[$i], [ref]$bi) | Out-Null }
+                    if ($ai -lt $bi) { $cmp = -1; break }
+                    if ($ai -gt $bi) { $cmp = 1;  break }
+                }
+                $UpdateCheck.LastChecked     = Get-Date
+                $UpdateCheck.LatestVersion   = $latest
+                $UpdateCheck.LatestUrl       = [string]$resp.html_url
+                $UpdateCheck.AssetUrl        = if ($asset) { [string]$asset.browser_download_url } else { $null }
+                $UpdateCheck.AssetName       = if ($asset) { [string]$asset.name } else { $null }
+                $UpdateCheck.Sha256          = $sha256
+                $UpdateCheck.ReleaseNotes    = [string]$resp.body
+                $UpdateCheck.UpdateAvailable = ($cmp -lt 0)
+                $UpdateCheck.LastError       = $null
+            }
+            catch {
+                $UpdateCheck.LastChecked = Get-Date
+                $UpdateCheck.LastError   = $_.Exception.Message
+            }
+        })
+        $null = $updateChecker.BeginInvoke()
+        Write-Log "Update check runspace started (background)" -Level Info
+    }
+    catch {
+        Write-Log "Failed to spawn update-check runspace: $($_.Exception.Message)" -Level Warning
+    }
+}
 
 # Create and start HTTP listener with retry logic
 $listener = $null
@@ -5202,6 +6683,54 @@ Write-Log "Server started on port $Port" -Level Success
 Write-Log "Web UI: http://localhost:$Port" -Level Info
 Write-Log "Press Ctrl+C to stop the server" -Level Info
 Write-Host ""
+
+# Auto-shutdown watchdog: when the browser closes, HTTP polling from the UI
+# stops instantly. We use "time since last /api/ request" as the activity
+# signal -- far more reliable than WebSocket client count, because force-
+# closed tabs leave TCP half-open sockets that keep the WS dict populated
+# for minutes (TCP keepalive default is ~2 hours). HTTP, by contrast, is
+# request/response per call; idle = truly idle.
+#
+# Handle-APIRequest updates LastActivity on every call (see below). The
+# watchdog polls the timestamp and exits if grace expires after arming.
+# Arming happens on the first recorded request, so a server started with
+# no browser open yet does NOT immediately self-terminate.
+#
+# Exits with code 0 (not 1001) -- batch loop does NOT relaunch.
+$script:AutoShutdownState = [hashtable]::Synchronized(@{
+    LastActivity = Get-Date
+    Armed        = $false
+    GraceSeconds = 60
+    PollSeconds  = 10
+})
+# Route through New-MagnetoRunspace per RUNSPACE-04 lint -- the watchdog
+# does not need the shared helpers but bypassing the factory would let any
+# future code reach this site as a precedent.
+$watchdogRunspace = New-MagnetoRunspace -HelpersPath $script:RunspaceHelpersPath -SharedVariables @{}
+$watchdog = [powershell]::Create()
+$watchdog.Runspace = $watchdogRunspace
+$null = $watchdog.AddScript({
+    param($listener, $state)
+    while ($true) {
+        Start-Sleep -Seconds $state['PollSeconds']
+        try {
+            if (-not $state['Armed']) { continue }
+            $idle = ((Get-Date) - $state['LastActivity']).TotalSeconds
+            if ($idle -ge $state['GraceSeconds']) {
+                Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [Info] No HTTP activity for $([int]$idle)s -- auto-shutting down MAGNETO (browser closed)." -ForegroundColor Cyan
+                # INTENTIONAL-SWALLOW: listener may already be stopped by another shutdown path; we force Exit either way.
+                try { $listener.Stop() } catch { }
+                # INTENTIONAL-SWALLOW: listener may already be closed by another shutdown path; we force Exit either way.
+                try { $listener.Close() } catch { }
+                [Environment]::Exit(0)
+            }
+        } catch {
+            Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [Warning] Watchdog tick error: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}).AddArgument($listener).AddArgument($script:AutoShutdownState)
+$null = $watchdog.BeginInvoke()
+Write-Log "AutoShutdown watchdog started (HTTP-idle grace=$($script:AutoShutdownState['GraceSeconds'])s)" -Level Info
 
 # Run log cleanup on startup (removes logs older than 30 days)
 Invoke-LogCleanup -RetentionDays 30
@@ -5339,8 +6868,9 @@ while ($script:ServerRunning) {
         }
 
         # Check if restart was requested
-        if ($script:RestartRequested) {
-            Write-Log "Initiating server restart..." -Level Warning
+        if ($script:RestartRequested -or $script:UpdateRestartRequested) {
+            $reason = if ($script:UpdateRestartRequested) { 'update' } else { 'restart' }
+            Write-Log "Initiating server $reason..." -Level Warning
 
             # Small delay to ensure response is sent
             Start-Sleep -Milliseconds 500
@@ -5366,11 +6896,19 @@ while ($script:ServerRunning) {
                 Write-Log "Error closing listener: $($_.Exception.Message)" -Level Warning
             }
 
-            Write-Log "Restarting server..." -Level Success
-
-            # Exit with code 1001 to signal restart to the batch file
             $script:ServerRunning = $false
-            exit 1001
+
+            if ($script:UpdateRestartRequested) {
+                # Exit 0 -- the batch loop only re-launches on 1001. The detached
+                # Apply-Update.ps1 helper will copy files in once we're gone and
+                # then re-launch Start_Magneto.bat itself.
+                Write-Log "Exiting (update path): batch will NOT loop; helper relaunches us" -Level Success
+                exit 0
+            } else {
+                Write-Log "Restarting server..." -Level Success
+                # Exit 1001 -- batch loop re-launches MAGNETO with sessions preserved.
+                exit 1001
+            }
         }
     }
     catch [System.Net.HttpListenerException] {

@@ -428,6 +428,31 @@ function Remove-Session {
     }
 }
 
+function Remove-SessionsByUsername {
+    <#
+    .SYNOPSIS
+        Drops every active session for the given username. Used when an admin
+        deletes a login account so the deleted user's existing browser tabs
+        immediately get 401 on the next request.
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param(
+        [Parameter(Mandatory)][string]$Username
+    )
+
+    $matchingTokens = @($script:Sessions.Keys) | Where-Object {
+        $script:Sessions[$_].username -ieq $Username
+    }
+    foreach ($tok in $matchingTokens) {
+        $script:Sessions.Remove($tok)
+    }
+    if ($matchingTokens.Count -gt 0) {
+        Save-SessionStore
+    }
+    return $matchingTokens.Count
+}
+
 function Save-SessionStore {
     <#
     .SYNOPSIS
@@ -926,6 +951,7 @@ Export-ModuleMember -Function @(
     'Get-SessionByToken',
     'Update-SessionExpiry',
     'Remove-Session',
+    'Remove-SessionsByUsername',
     'Initialize-SessionStore',
     'Get-CookieValue',
     'Get-UnauthAllowlist',

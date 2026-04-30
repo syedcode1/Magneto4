@@ -1,67 +1,117 @@
-# MAGNETO V4
+# MAGNETO V4.5
 
-**Living Off The Land Attack Simulation Framework**
+**Living Off The Land Attack Simulation Framework for SIEM/UEBA Validation**
 
-MAGNETO V4 is a security testing and red team exercise tool that simulates adversary techniques using native Windows binaries (LOLBins). It features a modern web-based GUI with a PowerShell backend.
+MAGNETO is a PowerShell-backed, web-UI-fronted tool for running authorized adversary simulations against Windows endpoints. It ships with a curated catalogue of 66+ MITRE ATT&CK techniques, APT campaign bundles, and a Smart Rotation engine that drives realistic baseline + attack patterns across a pool of impersonated users -- ideal for validating SIEM correlation rules and UEBA behavioral models without leaving real artifacts.
 
 ## Features
 
-- **55 MITRE ATT&CK Techniques** - Pre-built LOLBin techniques mapped to ATT&CK framework
-- **APT Campaign Simulation** - Execute techniques as real-world threat actors (APT29, APT32, etc.)
-- **User Impersonation** - Run techniques as different users with DPAPI-encrypted credentials
-- **Smart Rotation for UEBA** - Automated 30-user rotation for Exabeam UEBA demo environments
-- **Scheduling** - Windows Task Scheduler integration for automated simulations
-- **Real-time Console** - WebSocket-based live execution output
-- **Reporting & Analytics** - MITRE ATT&CK coverage matrix, execution history, CSV/JSON/HTML export
+- **66+ MITRE ATT&CK Techniques** -- LOLBin-based, mapped to ATT&CK v16.1, with optional cleanup commands.
+- **Three-tier simulation safety model** -- runtime-gated (default, no host-state mutation), real-binary-with-failing-args, or real-mutation-with-cleanup. Production-safe by default.
+- **APT Campaign Simulation** -- pre-built APT29, APT41, FIN7, and "LR MITRE KB" campaigns.
+- **User Impersonation** -- run techniques as DPAPI-encrypted local or domain users from an impersonation pool.
+- **Smart Rotation for UEBA** -- 14-day Baseline / 10-day Attack / 6-day Cooldown cycle across a user pool with per-user phase tracking.
+- **Manual Schedules** -- one-shot, daily, or weekly Windows Task Scheduler entries.
+- **Real-time WebSocket console** + live MITRE matrix coverage.
+- **HTML / CSV / JSON reports** with NIST 800-53 + CSF 2.0 control mapping.
+- **Hardened authentication** -- PBKDF2-SHA256 600k iterations, 30-day sliding sessions, rate-limited login, CLI-only admin bootstrap, no public `/setup` endpoint.
+- **In-app updates** -- one-click upgrade from GitHub Releases. Operator data (login accounts, user pool, schedules, history, audit log, custom TTPs) is preserved across every update.
 
 ## Requirements
 
-- Windows 10/11 or Windows Server 2016+
+- Windows 10 / 11 or Windows Server 2016+
 - PowerShell 5.1 or higher
-- Administrator privileges (for some features)
-- Port 8080 available
+- .NET Framework 4.7.2+ (release-DWORD >= 461808)
+- Administrator privileges (required for elevation-dependent TTPs, Task Scheduler writes, SIEM logging toggles)
+- Port 8080 available (default; configurable)
+- For domain user features: domain-joined machine
 
-## Quick Start
+---
 
-```powershell
-cd C:\Path\To\MAGNETO_V4
-.\Start-Magneto.bat
-```
+## Install (new users)
 
-The web interface opens automatically at `http://localhost:8080`
+1. **Download the latest release zip** from <https://github.com/syedcode1/Magneto4/releases/latest>.
+2. **Extract** to a folder of your choice -- e.g. `C:\Tools\Magneto`.
+3. **Verify the SHA256** (printed on the release page) matches the downloaded zip:
+   ```powershell
+   (Get-FileHash -Algorithm SHA256 .\magneto-v4.5.0.zip).Hash
+   ```
+4. **Bootstrap an admin login account** (one-time, before first launch):
+   ```powershell
+   cd C:\Tools\Magneto
+   powershell -ExecutionPolicy Bypass -File .\MagnetoWebService.ps1 -CreateAdmin
+   ```
+   You will be prompted for a username and password. The credentials are PBKDF2-hashed and stored in `data/auth.json`.
+5. **Launch**:
+   ```powershell
+   .\Start_Magneto.bat
+   ```
+   The browser opens automatically at <http://localhost:8080>. Log in with the admin account you just created.
 
-## Project Structure
+> Want a custom port? `.\Start_Magneto.bat 8081`
 
-```
-MAGNETO_V4/
-├── MagnetoWebService.ps1    # PowerShell HTTP server + API
-├── Start-Magneto.bat        # Launcher script
-├── modules/                 # PowerShell modules
-│   └── MAGNETO_ExecutionEngine.psm1
-├── web/                     # Frontend UI
-│   ├── index.html
-│   ├── css/matrix-theme.css
-│   └── js/app.js
-├── data/                    # Configuration & data files
-│   ├── techniques.json      # Attack techniques library
-│   ├── campaigns.json       # APT campaigns
-│   └── users.json           # Impersonation pool
-└── scripts/                 # Utility scripts
-    └── Create-MagnetoUsers.ps1
-```
+---
+
+## Update (existing users)
+
+MAGNETO checks GitHub on every cold start. When a newer release is published, you'll see:
+
+- A **"Update available"** banner on the dashboard.
+- A new **Updates** card in **Settings** (admin-only) with the new version, release notes, and an **Install Update** button.
+
+Click **Install Update**. MAGNETO will:
+
+1. Download the new release zip.
+2. Verify its SHA256 against the value published in the GitHub release notes.
+3. Back up your current install (code only -- not data) to `backups/`.
+4. Restart the server with the new code.
+
+**Your data is preserved across updates.** The following files are never touched by the update mechanism:
+
+| Operator data | File |
+|---------------|------|
+| Login accounts | `data/auth.json` |
+| Impersonation user pool | `data/users.json` |
+| Active sessions | `data/sessions.json` |
+| Manual schedules | `data/schedules.json` |
+| Smart Rotation config + state | `data/smart-rotation.json` |
+| Execution history | `data/execution-history.json` |
+| Audit log | `data/audit-log.json` |
+| All log files | `logs/**` |
+| Backups | `backups/**` |
+
+Custom TTPs you've added through the UI are merged with the new release's built-in TTPs. Any TTP whose ID is *not* in the new release's catalogue is preserved verbatim.
+
+---
+
+## Recovery
+
+If you forget your admin password or `auth.json` becomes corrupted, see [`docs/RECOVERY.md`](docs/RECOVERY.md). Short answer: shut MAGNETO down, run `MagnetoWebService.ps1 -CreateAdmin` from an elevated shell to seed a fresh admin, relaunch the batch.
+
+After a Factory Reset (Settings -> Factory Reset), the same recovery flow is mandatory -- the reset clears `auth.json` deliberately.
+
+---
 
 ## Usage
 
-1. **Execute** - Select techniques, campaigns, or tactics to run
-2. **Users** - Manage impersonation pool for credential-based execution
-3. **Scheduler** - Create scheduled attack simulations
-4. **Smart Rotation** - Configure automated UEBA baseline/attack rotation
-5. **Reports** - View execution history and MITRE ATT&CK coverage
+| Tab | Purpose |
+|-----|---------|
+| **Dashboard** | System status, last execution summary, update banner |
+| **TTPs** | Browse / add / edit techniques |
+| **Execute** | Run a technique, tactic, or campaign on demand |
+| **Users** | Manage impersonation pool (local + domain users) |
+| **Scheduler** | Manual schedules (once / daily / weekly) + Smart Rotation config |
+| **Reports** | Recent executions, MITRE matrix coverage, exportable HTML/CSV/JSON |
+| **Settings** | Theme, console height, account management, **updates**, factory reset |
+
+---
 
 ## Disclaimer
 
-This tool is intended for authorized security testing, red team exercises, and educational purposes only. Always obtain proper authorization before running attack simulations.
+This tool is intended for **authorized** security testing, red team engagements, blue-team detection tuning, and educational purposes only. **Always obtain proper authorization** from the owner of the target environment before running any simulation. The authors and copyright holders accept no liability for unauthorized use.
+
+---
 
 ## License
 
-For internal security testing use only.
+MIT -- see [`LICENSE`](LICENSE).

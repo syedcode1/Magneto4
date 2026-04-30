@@ -1,5 +1,5 @@
 {
-  "version": "4.0.0",
+  "version": "4.5.0",
   "lastUpdated": "2024-12-04T00:00:00Z",
   "aptCampaigns": [
     {
@@ -83,6 +83,20 @@
       "techniques": ["T1548.002", "T1027", "T1112", "T1059.001", "T1083", "T1005", "T1041", "T1074.001"],
       "timingProfile": "targeted",
       "c2Style": "CustomHTTPS",
+      "threatLevel": "high",
+      "active": true
+    },
+    {
+      "id": "lr-mitre-kb",
+      "name": "LR MITRE KB",
+      "campaignName": "LogRhythm MITRE Module Rule Validation",
+      "description": "Curated simulation set that exercises LogRhythm's built-in MITRE ATT&CK Module AIE correlation rules. Use to validate rule coverage, demo alarm paths, and tune UEBA baselines against known AIE signatures. Synthetic (not a real threat actor); commands are keyword-only echoes where destructive behavior would be involved.",
+      "attribution": "Synthetic — LogRhythm SIEM validation",
+      "aliases": ["LR-AIE-Validation", "MITRE-KB-Sim", "LR-MITRE-KB"],
+      "primaryTargets": ["SOC Validation", "UEBA Tuning", "AIE Rule Testing"],
+      "techniques": ["T1003.001", "T1558.003", "T1562.001", "T1490", "T1053.005", "T1543.003", "T1569.002"],
+      "timingProfile": "aggressive",
+      "c2Style": "N/A",
       "threatLevel": "high",
       "active": true
     }

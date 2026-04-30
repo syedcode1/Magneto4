@@ -9,7 +9,7 @@ class MagnetoWebSocket {
         this.clientId = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 10;
+        this.maxReconnectAttempts = 4;
         this.reconnectDelay = 2000;
         this.messageHandlers = new Map();
         this.connectionHandlers = {
@@ -142,8 +142,39 @@ class MagnetoWebSocket {
                 this.connect();
             }, delay);
         } else {
-            console.error('[WebSocket] Max reconnection attempts reached');
+            console.error('[WebSocket] Max reconnection attempts reached -- server likely stopped');
+            this.showServerStoppedOverlay();
         }
+    }
+
+    /**
+     * Replace the page with a full-screen "server stopped" notice.
+     * Reached when the WS reconnect budget is exhausted -- means the
+     * PowerShell server process is gone (terminal closed, auto-shutdown
+     * fired, crash, etc). window.close() is attempted but usually blocked
+     * for user-opened tabs; the overlay at minimum gives the user a
+     * clear signal instead of a silently stale UI.
+     */
+    showServerStoppedOverlay() {
+        // Guard against double-invocation
+        if (document.getElementById('magneto-server-stopped')) return;
+        try { window.magnetoApp?._heartbeatInterval && clearInterval(window.magnetoApp._heartbeatInterval); } catch (_) {}
+        const overlay = document.createElement('div');
+        overlay.id = 'magneto-server-stopped';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);color:#ff4444;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:"Share Tech Mono",monospace;text-align:center;padding:40px;';
+        overlay.innerHTML = `
+            <div style="font-size:64px;margin-bottom:20px;">[X]</div>
+            <h2 style="color:#ff4444;font-size:28px;margin:0 0 16px 0;letter-spacing:2px;">MAGNETO SERVER STOPPED</h2>
+            <p style="color:#ccc;font-size:16px;max-width:520px;line-height:1.6;margin:0 0 24px 0;">
+                The MAGNETO server process has stopped. This tab is no longer live.
+                Attempting to close automatically -- if it stays open, you can close it manually.
+            </p>
+            <button id="magneto-close-tab-btn" style="background:#ff4444;color:#000;border:0;padding:12px 24px;font-family:inherit;font-size:14px;letter-spacing:1px;cursor:pointer;">CLOSE THIS TAB</button>
+        `;
+        document.body.appendChild(overlay);
+        document.getElementById('magneto-close-tab-btn')?.addEventListener('click', () => window.close());
+        // Also try auto-close once (will silently fail for user-opened tabs)
+        setTimeout(() => { try { window.close(); } catch (_) {} }, 500);
     }
 
     /**

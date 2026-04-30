@@ -1,0 +1,152 @@
+name: Release
+
+# Trigger: any tag push matching v<MAJOR>.<MINOR>.<PATCH> (semver only).
+# Manual dispatch is also supported for re-running a release if the asset
+# upload step fails after the tag was pushed.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (must already exist, e.g. v4.5.0)"
+        required: true
+
+permissions:
+  contents: write   # required to create the GitHub Release + upload asset
+
+jobs:
+  release:
+    name: Build + publish release zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Resolve tag + version
+        id: ver
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building release for tag=$TAG version=$VERSION"
+
+      - name: Sanity check -- tag matches Version: header in MagnetoWebService.ps1
+        shell: bash
+        run: |
+          set -e
+          DECLARED=$(grep -m1 -E '^\s*Version:\s*[0-9]+\.[0-9]+\.[0-9]+' MagnetoWebService.ps1 | sed -E 's/.*Version:\s*//' | tr -d '[:space:]')
+          EXPECTED="${{ steps.ver.outputs.version }}"
+          echo "Declared in script: '$DECLARED'   Tag-derived: '$EXPECTED'"
+          if [ "$DECLARED" != "$EXPECTED" ]; then
+            echo "::error::Tag $EXPECTED does not match the Version: header in MagnetoWebService.ps1 ('$DECLARED'). Bump the script header before tagging."
+            exit 1
+          fi
+
+      - name: Sanity check -- techniques.json + campaigns.json + builtin-ttp-ids.json present
+        shell: bash
+        run: |
+          for f in data/techniques.json data/campaigns.json data/builtin-ttp-ids.json data/nist-mappings.json data/ttp-classification.json; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Required release data file missing: $f"
+              exit 1
+            fi
+          done
+
+      - name: Build release zip
+        id: zip
+        shell: bash
+        run: |
+          set -e
+          ZIPNAME="magneto-${{ steps.ver.outputs.tag }}.zip"
+          # Stage everything under a versioned top-level dir so users get a
+          # clean folder when they extract.
+          STAGE="magneto-${{ steps.ver.outputs.tag }}"
+          mkdir -p "$STAGE"
+
+          # Whitelist what ships in the release zip.
+          # Code:
+          cp MagnetoWebService.ps1     "$STAGE/"
+          cp Start_Magneto.bat         "$STAGE/"
+          cp run-tests.ps1             "$STAGE/"
+          cp -r modules                "$STAGE/"
+          cp -r web                    "$STAGE/"
+          cp -r scripts                "$STAGE/"
+          cp -r tests                  "$STAGE/"
+          cp -r docs                   "$STAGE/" || true
+
+          # Curated reference data (no operator-owned files).
+          mkdir -p "$STAGE/data"
+          cp data/techniques.json          "$STAGE/data/"
+          cp data/campaigns.json           "$STAGE/data/"
+          cp data/nist-mappings.json       "$STAGE/data/"
+          cp data/ttp-classification.json  "$STAGE/data/"
+          cp data/builtin-ttp-ids.json     "$STAGE/data/"
+
+          # Top-level docs.
+          cp README.md                 "$STAGE/" || true
+          cp CHANGELOG.md              "$STAGE/" || true
+          cp LICENSE                   "$STAGE/" || true
+          cp CLAUDE.md                 "$STAGE/" || true
+
+          # Strip the customer-internal Tailscale invite file if it slipped in.
+          rm -f "$STAGE/docs/892httpslogin.tailscale.comadmininv.txt" || true
+
+          # Build the zip.
+          (cd "$STAGE/.." && zip -r "$ZIPNAME" "$(basename "$STAGE")") || zip -r "$ZIPNAME" "$STAGE"
+
+          SHA256=$(sha256sum "$ZIPNAME" | awk '{print $1}')
+          echo "name=$ZIPNAME"   >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256"  >> "$GITHUB_OUTPUT"
+          echo "Built $ZIPNAME -- SHA256 $SHA256"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        shell: bash
+        run: |
+          set -e
+          VERSION="${{ steps.ver.outputs.version }}"
+          # Pull the section under "## [VERSION]" through the next "## [" or EOF.
+          BODY=$(awk -v v="$VERSION" '
+            /^## \[/ {
+              if (matched) { exit }
+              if ($0 ~ "\\[" v "\\]") { matched=1; next }
+            }
+            matched { print }
+          ' CHANGELOG.md)
+          if [ -z "$BODY" ]; then
+            BODY="See CHANGELOG.md for details."
+          fi
+          # Append the SHA256 line so the auto-update verifier in MAGNETO can
+          # parse it deterministically (`SHA256: <hex>`).
+          BODY="$BODY
+
+---
+**Asset**: ${{ steps.zip.outputs.name }}
+**SHA256**: ${{ steps.zip.outputs.sha256 }}
+**Tag**: ${{ steps.ver.outputs.tag }}"
+          # Stash to a file so we can pass it via softprops/action-gh-release.
+          printf '%s\n' "$BODY" > release-notes.md
+          echo "Release notes written to release-notes.md"
+
+      - name: Create GitHub Release + upload zip
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: "MAGNETO ${{ steps.ver.outputs.tag }}"
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          files: |
+            ${{ steps.zip.outputs.name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

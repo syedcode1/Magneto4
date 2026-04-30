@@ -26,6 +26,17 @@ class MagnetoApp {
     async init() {
         console.log('[MAGNETO] Initializing application...');
 
+        // Await the /api/auth/me probe promise from index.html so this.user
+        // is populated before applyRoleVisibility() runs. Without this await,
+        // the probe races with init() and admin users see Scheduler/Users
+        // hidden (this.user is null at constructor time).
+        if (window.__MAGNETO_ME_PROMISE) {
+            try {
+                const me = await window.__MAGNETO_ME_PROMISE;
+                if (me) this.user = me;
+            } catch (_) { /* probe rejected -- page is already redirecting */ }
+        }
+
         // AUTH-14 topbar + AUTH-13 admin-hide run BEFORE any API calls so the
         // admin-only DOM nodes are gone before operator users see them flash.
         this.renderUserTopbar();
@@ -58,8 +69,9 @@ class MagnetoApp {
         this.setupReportsView();
         this.setupUsersView();
 
-        // Load users for Execute As dropdown
-        await this.loadUsers();
+        // (Users are loaded in the parallel batch above; loadUsers is no
+        // longer awaited here. View handlers that need fresh user data can
+        // call loadUsers() themselves on demand.)
 
         console.log('[MAGNETO] Application initialized');
     }
@@ -252,6 +264,25 @@ class MagnetoApp {
 
         // Check SIEM status on startup (after a short delay)
         setTimeout(() => this.checkSiemStatusOnStartup(), 2000);
+
+        this.startHeartbeat();
+    }
+
+    /**
+     * Periodic ping to keep the server's auto-shutdown watchdog from
+     * firing while this tab is open. The server's watchdog treats >60s
+     * of no /api/ calls as "browser closed" and exits. If the user is
+     * on a quiet view with no polling, this heartbeat keeps it alive.
+     * Stops if a fetch throws (server gone) -- reconnect logic elsewhere
+     * will handle the "server stopped" overlay.
+     */
+    startHeartbeat() {
+        if (this._heartbeatInterval) return;
+        this._heartbeatInterval = setInterval(async () => {
+            try {
+                await fetch('/api/status', { credentials: 'include', cache: 'no-store' });
+            } catch (_) { /* server gone -- websocket-client overlay handles UX */ }
+        }, 20000);
     }
 
     /**
@@ -393,12 +424,61 @@ class MagnetoApp {
                 </label>
             </div>
 
+            ${this.user?.role === 'admin' ? `
             <div class="card" style="margin-top: 20px; padding: 15px;">
-                <h3 style="margin-bottom: 10px; border: none; padding: 0;">About MAGNETO V4</h3>
+                <h3 style="margin-bottom: 10px; border: none; padding: 0;">Manage Login Accounts</h3>
+                <p style="color: var(--text-secondary); font-size: 12px; margin: 5px 0 12px 0;">
+                    Create or delete MAGNETO login accounts. These are the credentials users type at the login page,
+                    NOT the impersonation users in the Users sidebar (those are Windows accounts MAGNETO runs attacks as).
+                </p>
+                <div id="login-accounts-list" style="margin-bottom: 12px;">
+                    <p style="color: var(--text-muted); font-size: 12px;">Loading...</p>
+                </div>
+                <details style="margin-top: 10px;">
+                    <summary style="cursor: pointer; color: var(--matrix-green); font-size: 12px;">+ Add new login account</summary>
+                    <div style="margin-top: 12px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                        <div class="form-group">
+                            <label style="font-size: 11px;">Username (3-32 chars: letters, digits, underscore, hyphen)</label>
+                            <input type="text" id="new-account-username" class="form-input" autocomplete="off" maxlength="32">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 11px;">Password (8+ characters)</label>
+                            <input type="password" id="new-account-password" class="form-input" autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 11px;">Role</label>
+                            <select id="new-account-role" class="select-input">
+                                <option value="operator">Operator</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" style="margin-top: 8px;" onclick="magnetoApp.createLoginAccount()">Create Account</button>
+                    </div>
+                </details>
+            </div>
+            ` : ''}
+
+            <div class="card" style="margin-top: 20px; padding: 15px;">
+                <h3 style="margin-bottom: 10px; border: none; padding: 0;">About MAGNETO V4.5</h3>
                 <p style="color: var(--text-secondary); font-size: 12px; margin: 5px 0;">Living Off The Land Attack Simulation Framework</p>
-                <p style="color: var(--text-muted); font-size: 11px; margin: 5px 0;">Version 4.0 | MITRE ATT&CK v16.1</p>
+                <p style="color: var(--text-muted); font-size: 11px; margin: 5px 0;">Version 4.5 | MITRE ATT&CK v16.1</p>
                 <p style="color: var(--text-muted); font-size: 11px; margin: 5px 0;">For authorized security testing only.</p>
             </div>
+
+            ${this.user?.role === 'admin' ? `
+            <div class="card" id="updates-card" style="margin-top: 20px; padding: 15px;">
+                <h3 style="margin-bottom: 10px; border: none; padding: 0;">Updates</h3>
+                <p style="color: var(--text-secondary); font-size: 12px; margin: 5px 0 10px 0;">
+                    Pulls the latest release from <a href="https://github.com/syedcode1/Magneto4/releases" target="_blank" rel="noopener" style="color: var(--matrix-cyan);">github.com/syedcode1/Magneto4</a>.
+                    Your data (login accounts, user pool, schedules, history, audit log, custom TTPs) is preserved across every update.
+                </p>
+                <div id="updates-status" style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Loading update status...</div>
+                <div id="updates-actions">
+                    <button class="btn btn-secondary" id="btn-check-updates" onclick="magnetoApp.checkForUpdates()">Check for Updates</button>
+                </div>
+                <div id="updates-release-notes" style="display: none; margin-top: 14px; padding: 10px; background: rgba(0,0,0,0.25); border-radius: 4px; font-size: 11px; color: var(--text-secondary); max-height: 220px; overflow: auto; white-space: pre-wrap;"></div>
+            </div>
+            ` : ''}
 
             <div class="card" style="margin-top: 20px; padding: 15px; border-color: #ff4444;">
                 <h3 style="margin-bottom: 10px; border: none; padding: 0; color: #ff4444;">Factory Reset</h3>
@@ -437,7 +517,325 @@ class MagnetoApp {
         document.getElementById('settings-theme')?.addEventListener('change', (e) => {
             this.applyTheme(e.target.value);
         });
+
+        // Lazy-load the login-accounts list (admin only) once the modal is open
+        if (this.user?.role === 'admin') {
+            this.loadLoginAccounts();
+            this.loadUpdatesPanel();
+        }
     }
+
+    /**
+     * Render the Settings -> Updates panel using the current /api/system/version
+     * cache (populated by the server's startup background runspace).
+     */
+    async loadUpdatesPanel() {
+        const target = document.getElementById('updates-status');
+        if (!target) return;
+        try {
+            const v = await this.api('/api/system/version');
+            this.renderUpdatePanel(v);
+        } catch (e) {
+            target.innerHTML = `<span style="color:#ff8a8a;">Failed to load: ${this.escapeHtml(e?.message || String(e))}</span>`;
+        }
+    }
+
+    /**
+     * Render given /api/system/version response into the Updates card.
+     * Called from loadUpdatesPanel + checkForUpdates.
+     */
+    renderUpdatePanel(v) {
+        const status = document.getElementById('updates-status');
+        const actions = document.getElementById('updates-actions');
+        const notesBox = document.getElementById('updates-release-notes');
+        if (!status || !actions || !notesBox) return;
+
+        const cur = v?.current || '?';
+        const latest = v?.latestVersion || null;
+        const updateAvailable = !!v?.updateAvailable;
+        const checked = v?.lastChecked ? new Date(v.lastChecked).toLocaleString() : 'never';
+        const err = v?.lastError ? `<br><span style="color:#ff8a8a;">Last error: ${this.escapeHtml(v.lastError)}</span>` : '';
+
+        if (updateAvailable && latest) {
+            status.innerHTML = `
+                <span style="color: var(--matrix-cyan);">&#9733;</span>
+                <strong style="color: var(--matrix-cyan);">Update available: v${this.escapeHtml(latest)}</strong>
+                <span style="color: var(--text-muted);"> (current: v${this.escapeHtml(cur)})</span>
+                <br><span style="color: var(--text-muted); font-size: 11px;">Last checked: ${this.escapeHtml(checked)}</span>${err}
+            `;
+            actions.innerHTML = `
+                <button class="btn btn-primary" onclick="magnetoApp.installUpdate()">Install Update</button>
+                <button class="btn btn-secondary" onclick="magnetoApp.checkForUpdates()" style="margin-left:6px;">Re-check</button>
+                <a class="btn btn-secondary" href="${this.escapeHtml(v.releaseUrl || ('https://github.com/syedcode1/Magneto4/releases/tag/v' + latest))}" target="_blank" rel="noopener" style="margin-left:6px;">View on GitHub</a>
+            `;
+            const notes = (v.releaseNotes || '').trim();
+            notesBox.style.display = notes ? '' : 'none';
+            notesBox.textContent = notes || '';
+        } else if (latest) {
+            status.innerHTML = `
+                <span style="color: #6cd06c;">&#10003;</span>
+                Up to date (v${this.escapeHtml(cur)})
+                <br><span style="color: var(--text-muted); font-size: 11px;">Last checked: ${this.escapeHtml(checked)}</span>${err}
+            `;
+            actions.innerHTML = `
+                <button class="btn btn-secondary" onclick="magnetoApp.checkForUpdates()">Check for Updates</button>
+            `;
+            notesBox.style.display = 'none';
+        } else {
+            status.innerHTML = `
+                <span style="color: var(--text-muted);">No release data yet.</span>
+                <br><span style="color: var(--text-muted); font-size: 11px;">Last checked: ${this.escapeHtml(checked)}</span>${err}
+            `;
+            actions.innerHTML = `
+                <button class="btn btn-secondary" onclick="magnetoApp.checkForUpdates()">Check for Updates</button>
+            `;
+            notesBox.style.display = 'none';
+        }
+    }
+
+    /**
+     * Force a fresh GitHub poll. Server-side endpoint bypasses the 60s cache.
+     */
+    async checkForUpdates() {
+        const status = document.getElementById('updates-status');
+        const btn = document.getElementById('btn-check-updates');
+        if (status) status.textContent = 'Checking GitHub...';
+        if (btn) btn.disabled = true;
+        try {
+            const v = await this.api('/api/system/update/check', { method: 'POST' });
+            this.renderUpdatePanel(v);
+            if (v?.updateAvailable) {
+                window.magnetoConsole?.log(`Update available: v${v.latestVersion}`, 'success');
+            } else {
+                window.magnetoConsole?.log(`Up to date (v${v.current}).`, 'info');
+            }
+        } catch (e) {
+            if (status) status.innerHTML = `<span style="color:#ff8a8a;">Check failed: ${this.escapeHtml(e?.message || String(e))}</span>`;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    /**
+     * Render or remove the dashboard "update available" banner. Idempotent --
+     * called on every /api/status heartbeat. Admin-only. Dismissal is sticky
+     * per-version via localStorage (key: magneto-update-banner-dismissed-<ver>),
+     * so a re-dismissal is not required after the operator upgrades.
+     */
+    renderUpdateBanner({ updateAvailable, latestVersion, current }) {
+        const ID = 'update-available-banner';
+        let el = document.getElementById(ID);
+
+        const isAdmin = this.user?.role === 'admin';
+        const dismissedKey = latestVersion ? `magneto-update-banner-dismissed-${latestVersion}` : null;
+        const dismissed = dismissedKey && localStorage.getItem(dismissedKey) === '1';
+
+        // Conditions to hide the banner.
+        if (!updateAvailable || !latestVersion || !isAdmin || dismissed) {
+            if (el) el.remove();
+            return;
+        }
+
+        // Insert (or update) the banner just below the topbar.
+        if (!el) {
+            el = document.createElement('div');
+            el.id = ID;
+            el.style.cssText = [
+                'background: linear-gradient(90deg, rgba(0,255,65,0.08), rgba(0,255,65,0.02))',
+                'border: 1px solid var(--matrix-cyan, #00ffe1)',
+                'color: var(--text-primary)',
+                'padding: 8px 16px',
+                'font-size: 13px',
+                'display: flex',
+                'align-items: center',
+                'gap: 12px',
+                'justify-content: center'
+            ].join(';');
+            // Place at the very top of the main content area so it does not
+            // displace the sidebar. Falls back to body insertion if main is missing.
+            const host = document.querySelector('.main-content') || document.body;
+            host.insertBefore(el, host.firstChild);
+        }
+
+        const safeLatest  = this.escapeHtml(latestVersion);
+        const safeCurrent = this.escapeHtml(current || '?');
+
+        el.innerHTML = `
+            <span style="color: var(--matrix-cyan, #00ffe1);">&#9733;</span>
+            <span><strong>Update available: v${safeLatest}</strong> &nbsp;<span style="color: var(--text-muted);">(current: v${safeCurrent})</span></span>
+            <button class="btn btn-primary" style="padding: 4px 10px; font-size: 12px;" onclick="magnetoApp.showSettings()">Open Settings</button>
+            <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="magnetoApp.dismissUpdateBanner('${safeLatest}')">Dismiss</button>
+        `;
+    }
+
+    /**
+     * Mark a specific latestVersion's banner dismissed. Stored per-version so
+     * the next release re-shows the banner without the operator having to
+     * un-dismiss anything.
+     */
+    dismissUpdateBanner(version) {
+        if (!version) return;
+        try { localStorage.setItem(`magneto-update-banner-dismissed-${version}`, '1'); } catch (_) {}
+        const el = document.getElementById('update-available-banner');
+        if (el) el.remove();
+    }
+
+    /**
+     * Confirm with the operator, then POST /api/system/update/install. The server
+     * stages the update and exits 0; the detached helper applies and re-launches.
+     * The browser sees the WebSocket disconnect -- websocket-client.js's existing
+     * reconnect logic will eventually surface the new server.
+     */
+    async installUpdate() {
+        const ok = confirm(
+            "MAGNETO will download the new release, verify its SHA256, back up the current install, "
+          + "stop the server, and re-launch with the new code.\n\n"
+          + "Your data (login accounts, user pool, schedules, history, audit log, custom TTPs) is preserved.\n\n"
+          + "Continue?"
+        );
+        if (!ok) return;
+        const status = document.getElementById('updates-status');
+        const actions = document.getElementById('updates-actions');
+        if (status) status.innerHTML = '<span style="color: var(--matrix-cyan);">Downloading + verifying + applying...</span>';
+        if (actions) actions.innerHTML = '<button class="btn btn-secondary" disabled>Installing...</button>';
+        try {
+            const r = await this.api('/api/system/update/install', { method: 'POST' });
+            if (r?.success) {
+                window.magnetoConsole?.log(`Update staged: ${r.from} -> ${r.to}. Server restarting.`, 'success');
+                if (status) {
+                    status.innerHTML = `
+                        <span style="color: var(--matrix-cyan);">Update staged.</span>
+                        Server is exiting; the helper script will copy files and re-launch MAGNETO automatically.
+                        <br><span style="color: var(--text-muted); font-size: 11px;">If the UI does not return after ~30 seconds, re-launch <code>Start_Magneto.bat</code> manually.</span>
+                    `;
+                }
+                // Trigger the existing server-stopped overlay flow when WS drops.
+                window.magnetoWS?.showServerStoppedOverlay?.();
+            } else {
+                throw new Error(r?.error || r?.message || 'Install failed');
+            }
+        } catch (e) {
+            if (status) status.innerHTML = `<span style="color:#ff8a8a;">Install failed: ${this.escapeHtml(e?.message || String(e))}</span>`;
+            if (actions) actions.innerHTML = '<button class="btn btn-secondary" onclick="magnetoApp.checkForUpdates()">Re-check</button>';
+        }
+    }
+
+    /**
+     * Fetch + render the MAGNETO login accounts list inside the Settings modal.
+     */
+    async loadLoginAccounts() {
+        const target = document.getElementById('login-accounts-list');
+        if (!target) return;
+        try {
+            const resp = await this.api('/api/auth/users');
+            const users = Array.isArray(resp?.users) ? resp.users : [resp?.users].filter(Boolean);
+            if (!users.length) {
+                target.innerHTML = '<p style="color: var(--text-muted); font-size: 12px;">No login accounts found.</p>';
+                return;
+            }
+            target.innerHTML = `
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                            <th style="text-align: left; padding: 6px 4px;">Username</th>
+                            <th style="text-align: left; padding: 6px 4px;">Role</th>
+                            <th style="text-align: left; padding: 6px 4px;">Last Login</th>
+                            <th style="text-align: right; padding: 6px 4px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(u => {
+                            const isMe = u.username === this.user?.username;
+                            const last = u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '<span style="color:var(--text-muted);">never</span>';
+                            const roleColor = u.role === 'admin' ? '#ffaa00' : 'var(--text-primary)';
+                            return `
+                            <tr style="border-bottom: 1px dashed rgba(255,255,255,0.05);">
+                                <td style="padding: 6px 4px;">${this.escapeHtml(u.username)}${isMe ? ' <span style="color:var(--matrix-green);font-size:10px;">(you)</span>' : ''}</td>
+                                <td style="padding: 6px 4px; color: ${roleColor};">${this.escapeHtml(u.role)}</td>
+                                <td style="padding: 6px 4px; color: var(--text-muted);">${u.lastLogin ? this.escapeHtml(new Date(u.lastLogin).toLocaleString()) : '<span style="color:var(--text-muted);">never</span>'}</td>
+                                <td style="padding: 6px 4px; text-align: right;">
+                                    <button class="btn btn-sm magneto-delete-account" data-username="${this.escapeHtml(u.username)}"
+                                        style="background: #aa3333; color: white; padding: 3px 10px; font-size: 11px;">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            target.querySelectorAll('button.magneto-delete-account').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const u = btn.getAttribute('data-username');
+                    if (u) this.deleteLoginAccount(u);
+                });
+            });
+        } catch (err) {
+            target.innerHTML = `<p style="color: #ff4444; font-size: 12px;">Failed to load accounts: ${this.escapeHtml(err?.message || String(err))}</p>`;
+        }
+    }
+
+    /**
+     * POST /api/auth/users with form values, then refresh the list.
+     */
+    async createLoginAccount() {
+        const u = document.getElementById('new-account-username')?.value?.trim();
+        const p = document.getElementById('new-account-password')?.value;
+        const r = document.getElementById('new-account-role')?.value;
+
+        if (!u || !/^[A-Za-z0-9_-]{3,32}$/.test(u)) {
+            window.magnetoConsole?.log('Username must be 3-32 chars (A-Z, a-z, 0-9, _, -)', 'error');
+            return;
+        }
+        if (!p || p.length < 8) {
+            window.magnetoConsole?.log('Password must be at least 8 characters', 'error');
+            return;
+        }
+
+        try {
+            const resp = await this.api('/api/auth/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p, role: r })
+            });
+            if (resp?.success) {
+                window.magnetoConsole?.log(`Login account '${u}' created (role=${r})`, 'success');
+                document.getElementById('new-account-username').value = '';
+                document.getElementById('new-account-password').value = '';
+                this.loadLoginAccounts();
+            } else {
+                window.magnetoConsole?.log(`Create failed: ${resp?.error || 'unknown error'}`, 'error');
+            }
+        } catch (err) {
+            window.magnetoConsole?.log(`Create failed: ${err?.message || String(err)}`, 'error');
+        }
+    }
+
+    /**
+     * DELETE /api/auth/users/{username} after a confirm. Server enforces
+     * the last-admin rule; we just surface its 4xx error.
+     */
+    async deleteLoginAccount(username) {
+        if (!confirm(`Delete login account '${username}'?\n\nThis user will be logged out immediately and won't be able to sign back in.`)) {
+            return;
+        }
+        try {
+            const resp = await this.api(`/api/auth/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+            if (resp?.success) {
+                window.magnetoConsole?.log(`Login account '${username}' deleted (${resp.droppedSessions} session(s) terminated)`, 'success');
+                this.loadLoginAccounts();
+                // If the admin deleted themselves, the next /api/auth/me will 401
+                if (username === this.user?.username) {
+                    setTimeout(() => window.location.replace('/login.html'), 800);
+                }
+            } else {
+                window.magnetoConsole?.log(`Delete failed: ${resp?.error || 'unknown error'}`, 'error');
+            }
+        } catch (err) {
+            window.magnetoConsole?.log(`Delete failed: ${err?.message || String(err)}`, 'error');
+        }
+    }
+
 
     /**
      * Save settings
@@ -482,8 +880,14 @@ class MagnetoApp {
             <div style="text-align: center; padding: 20px;">
                 <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
                 <h3 style="color: #ff4444; margin-bottom: 15px;">Confirm Factory Reset</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                    This will permanently delete all user data, execution history, reports, schedules, and logs.
+                <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                    This will permanently delete all user data, execution history, reports, schedules, logs,
+                    <strong style="color: #ff4444;">and the MAGNETO administrator account</strong>.
+                </p>
+                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 13px;">
+                    You will be logged out and locked out of MAGNETO. To relaunch, open PowerShell as administrator and run:
+                    <br><code style="color: #ff4444; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px;">MagnetoWebService.ps1 -CreateAdmin</code>
+                    <br>then restart <code>Start_Magneto.bat</code>.
                 </p>
                 <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 12px;">
                     Type <strong style="color: #ff4444;">RESET</strong> to confirm:
@@ -812,39 +1216,76 @@ class MagnetoApp {
      * Load initial data
      */
     async loadInitialData() {
-        try {
-            // Load status and system info
-            const status = await this.api('/api/status');
-            if (status) {
-                this.systemInfo = status.platform;
-                this.updateSystemInfo(status);
-            }
+        // Split into two phases. The server is a single-threaded PowerShell
+        // listener, so "parallel" requests actually serialize on the wire.
+        // Only block on the 3 calls the dashboard needs for first paint;
+        // fire the other 3 in the background after init() returns.
+        const t0 = performance.now();
+        const [statusR, campsR, reportsR] = await Promise.allSettled([
+            this.api('/api/status'),
+            this.api('/api/campaigns'),
+            this.api('/api/reports?limit=10'),
+        ]);
+        console.log(`[MAGNETO] Critical batch: ${Math.round(performance.now() - t0)}ms`);
 
-            // Load tactics
-            const tacticsData = await this.api('/api/tactics');
-            if (tacticsData?.tactics) {
-                this.tactics = tacticsData.tactics;
-                this.populateTacticFilters();
-            }
-
-            // Load techniques
-            await this.loadTechniques();
-
-            // Load campaigns
-            const campaignsData = await this.api('/api/campaigns');
-            if (campaignsData?.aptCampaigns) {
-                this.campaigns = campaignsData;
-            }
-
-            // Load dashboard activity (since dashboard is the default view)
-            await this.loadDashboardActivity();
-
-            // Update dashboard attack statistics
-            await this.updateDashboardStats();
-
-        } catch (error) {
-            console.error('[MAGNETO] Error loading initial data:', error);
+        if (statusR.status === 'fulfilled' && statusR.value) {
+            this.systemInfo = statusR.value.platform;
+            this.updateSystemInfo(statusR.value);
         }
+        if (campsR.status === 'fulfilled' && campsR.value?.aptCampaigns) {
+            this.campaigns = campsR.value;
+            this.populateCampaignDropdown();
+        }
+        if (reportsR.status === 'fulfilled' && reportsR.value) {
+            this._cachedReports = reportsR.value;
+            if (reportsR.value.recentExecutions) {
+                this.renderDashboardActivity(reportsR.value.recentExecutions);
+            }
+        }
+
+        // Render dashboard stats with whatever data we have so far.
+        // Techniques/tactics counts fill in when the background batch lands.
+        this.updateDashboardStats();
+
+        // Kick off the non-critical loads without awaiting -- init() can
+        // return, the UI paints, and these fill in when ready.
+        this.loadBackgroundData();
+    }
+
+    async loadBackgroundData() {
+        const t0 = performance.now();
+        const [tacticsR, techsR, usersR] = await Promise.allSettled([
+            this.api('/api/tactics'),
+            this.api('/api/techniques'),
+            this.api('/api/users'),
+        ]);
+        console.log(`[MAGNETO] Background batch: ${Math.round(performance.now() - t0)}ms`);
+
+        if (tacticsR.status === 'fulfilled' && tacticsR.value?.tactics) {
+            this.tactics = tacticsR.value.tactics;
+            this.populateTacticFilters();
+        }
+        if (techsR.status === 'fulfilled' && techsR.value) {
+            const td = techsR.value;
+            if (Array.isArray(td.techniques)) this.techniques = td.techniques;
+            else if (Array.isArray(td)) this.techniques = td;
+            else this.techniques = [];
+            this.renderTechniquesTable();
+            this.updateTechniqueCount();
+        } else {
+            this.techniques = [];
+        }
+        if (usersR.status === 'fulfilled' && usersR.value) {
+            const ud = usersR.value;
+            if (Array.isArray(ud.users)) this.users = ud.users;
+            else if (Array.isArray(ud)) this.users = ud;
+            else this.users = [];
+            this.renderUsersTable();
+            this.populateUserDropdown();
+        }
+
+        // Refresh the dashboard stat cards that depend on these
+        this.updateDashboardStats();
     }
 
     /**
@@ -870,15 +1311,11 @@ class MagnetoApp {
             campaignsElement.textContent = this.campaigns?.aptCampaigns?.length || 0;
         }
 
-        // Executions count - fetch from reports API
+        // Executions count - reuse the cached reports response from
+        // loadInitialData() instead of issuing another /api/reports call.
         const execElement = document.getElementById('stat-executions');
         if (execElement) {
-            try {
-                const summary = await this.api('/api/reports');
-                execElement.textContent = summary?.totalExecutions || 0;
-            } catch (e) {
-                execElement.textContent = 0;
-            }
+            execElement.textContent = this._cachedReports?.totalExecutions || 0;
         }
     }
 
@@ -984,6 +1421,13 @@ class MagnetoApp {
         // Update MAGNETO status indicators
         if (status.magneto) {
             const m = status.magneto;
+
+            // Update-available banner -- admin-only, dismissable per-version.
+            this.renderUpdateBanner({
+                updateAvailable: !!m.updateAvailable,
+                latestVersion: m.latestVersion || null,
+                current: status.version || null
+            });
 
             // Administrator status
             this.setStatusIndicator('status-admin', m.isAdmin, 'Running as Admin', 'Not Admin');
@@ -1107,6 +1551,28 @@ class MagnetoApp {
                 const option = document.createElement('option');
                 option.value = tactic.name;
                 option.textContent = tactic.name;
+                select.appendChild(option);
+            });
+        });
+    }
+
+    populateCampaignDropdown() {
+        const campaigns = this.campaigns?.aptCampaigns || [];
+        const selectIds = ['quick-campaign', 'exec-campaign'];
+
+        selectIds.forEach(id => {
+            const select = document.getElementById(id);
+            if (!select) return;
+
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            campaigns.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.id;
+                const label = c.name || c.campaignName || c.id;
+                option.textContent = (c.name && c.campaignName) ? `${c.name} - ${c.campaignName}` : label;
                 select.appendChild(option);
             });
         });
@@ -2342,6 +2808,19 @@ class MagnetoApp {
                     <input type="time" id="config-exec-time" class="text-input" value="${config.dailyExecutionTime || '09:00'}">
                 </div>
                 <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="config-randomize-time" ${(config.randomizeTime !== false) ? 'checked' : ''}
+                            onchange="document.getElementById('config-randomize-minutes').disabled = !this.checked">
+                        Randomize start time (jitter the registered task time so attacks don't fire at the exact same minute every day)
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Randomization window (minutes &plusmn;)</label>
+                    <input type="number" id="config-randomize-minutes" class="text-input"
+                        value="${config.randomizeMinutes ?? 30}" min="0" max="120"
+                        ${(config.randomizeTime === false) ? 'disabled' : ''}>
+                </div>
+                <div class="form-group">
                     <label>Max Concurrent Users</label>
                     <input type="number" id="config-max-users" class="text-input" value="${config.maxConcurrentUsers || 4}" min="1" max="10">
                 </div>
@@ -2374,8 +2853,8 @@ class MagnetoApp {
             dailyExecutionTime: document.getElementById('config-exec-time')?.value || '09:00',
             maxConcurrentUsers: parseInt(document.getElementById('config-max-users')?.value) || 4,
             randomizeTTPOrder: document.getElementById('config-randomize')?.checked || false,
-            randomizeTime: true,
-            randomizeMinutes: 30,
+            randomizeTime: document.getElementById('config-randomize-time')?.checked ?? true,
+            randomizeMinutes: Math.max(0, Math.min(120, parseInt(document.getElementById('config-randomize-minutes')?.value) || 0)),
             autoStartNewUsers: true,
             pauseOnWeekends: false
         };
@@ -2388,8 +2867,13 @@ class MagnetoApp {
 
             if (result.success) {
                 this.closeModal();
-                window.magnetoConsole?.log('Smart Rotation configuration saved', 'success');
+                const detail = result.message ? ` -- ${result.message}` : '';
+                window.magnetoConsole?.log(`Smart Rotation configuration saved${detail}`, 'success');
                 await this.loadSmartRotation();
+            } else {
+                const detail = result?.message || result?.error || 'Failed to save configuration';
+                window.magnetoConsole?.log(`Smart Rotation save FAILED: ${detail}`, 'error');
+                alert(`Failed to save Smart Rotation config: ${detail}`);
             }
         } catch (error) {
             window.magnetoConsole?.log(`Error saving config: ${error.message}`, 'error');
@@ -2732,9 +3216,10 @@ class MagnetoApp {
             if (result?.success) {
                 this.closeModal();
                 await this.loadSchedules();
-                window.magnetoConsole?.log(`Schedule ${scheduleId ? 'updated' : 'created'}: ${name}`, 'success');
+                const detail = result.message ? ` -- ${result.message}` : '';
+                window.magnetoConsole?.log(`Schedule ${scheduleId ? 'updated' : 'created'}: ${name}${detail}`, 'success');
             } else {
-                throw new Error(result?.error || 'Failed to save schedule');
+                throw new Error(result?.message || result?.error || 'Failed to save schedule');
             }
         } catch (error) {
             window.magnetoConsole?.log(`Error saving schedule: ${error.message}`, 'error');
@@ -3757,7 +4242,8 @@ localadmin,.,LocalP@ss,local`
 
                 result.results?.forEach(r => {
                     const level = r.status === 'valid' ? 'success' : 'error';
-                    window.magnetoConsole?.log(`  ${r.username}: ${r.status}`, level);
+                    const detail = r.message ? ` -- ${r.message}` : '';
+                    window.magnetoConsole?.log(`  ${r.username}: ${r.status}${detail}`, level);
                 });
 
                 await this.loadUsers();

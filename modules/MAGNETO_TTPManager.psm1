@@ -6,7 +6,7 @@
     Manages techniques (TTPs) including CRUD operations, filtering, and execution.
 
 .NOTES
-    Version: 4.0.0
+    Version: 4.5.0
     Author: MAGNETO Development Team
 #>
 
@@ -55,7 +55,7 @@ function Get-AllTechniques {
         Get all techniques
     #>
     return @{
-        version = "4.0.0"
+        version = "4.5.0"
         count = $script:Techniques.Count
         techniques = $script:Techniques
     }
@@ -231,7 +231,7 @@ function Save-Techniques {
         Save techniques to JSON file
     #>
     $data = @{
-        version = "4.0.0"
+        version = "4.5.0"
         frameworkVersion = "MITRE ATT&CK v16.1"
         lastUpdated = (Get-Date -Format "yyyy-MM-ddTHH:mm:ss.fffZ")
         techniques = $script:Techniques

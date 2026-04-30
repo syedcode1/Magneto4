@@ -111,7 +111,15 @@ $helpersToPromote = @(
     'Remove-Session',
     'Get-CookieValue',
     'Test-RateLimit',
-    'New-SessionToken'
+    'New-SessionToken',
+    # Update-mechanism helpers (Phase 0 + Phase 2)
+    'Get-Techniques',
+    'Save-Techniques',
+    'Get-MagnetoBuiltinTtpIds',
+    'Test-MagnetoBuiltinTtpId',
+    'Compare-MagnetoVersion',
+    'Get-MagnetoMergedTtpFile',
+    'Get-MagnetoMergedCampaignFile'
 )
 foreach ($name in $helpersToPromote) {
     # Missing functions are a silent no-op (Phase 3 helpers stay absent until

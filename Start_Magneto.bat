@@ -118,6 +118,21 @@ echo   TIP: To use a different port, run: Start_Magneto.bat 8081
 echo.
 
 :: ============================================================================
+:: Single-instance check -- refuse to launch a second MAGNETO on the same port
+:: ============================================================================
+:: Native TCP connect is near-instant on localhost; Test-NetConnection is slow.
+:: exit 1 = something is listening on the port. exit 0 = port is free.
+powershell.exe -NoProfile -Command "try { $t = New-Object Net.Sockets.TcpClient; $t.Connect('localhost', %PORT%); $t.Close(); exit 1 } catch { exit 0 }"
+if %ERRORLEVEL% EQU 1 (
+    echo.
+    echo [*] MAGNETO is already running on port %PORT%.
+    echo [*] Open http://%HOST%:%PORT%/ in your browser.
+    echo.
+    pause
+    exit /b 0
+)
+
+:: ============================================================================
 :: Admin-account precondition -- Phase 3 (AUTH-01, Pitfall 4 guard)
 :: ============================================================================
 :: Refuse to launch the listener if data\auth.json has no enabled admin.
@@ -145,12 +160,21 @@ echo [+] Admin account verified.
 :: ============================================================================
 :: Launch MAGNETO Web Server (with restart loop)
 :: ============================================================================
+:: First launch is a cold start -- pass -ColdStart so MagnetoWebService.ps1
+:: clears sessions.json and forces fresh logins. After an exit-1001 warm
+:: restart we clear COLD_FLAG so active sessions survive the internal
+:: restart button (SESS-04).
+set "COLD_FLAG=-ColdStart"
+
 :StartServer
 echo [+] Starting MAGNETO V4 Web Server...
 echo [*] Press Ctrl+C to stop the server.
 echo.
 
-powershell -ExecutionPolicy Bypass -File "%WEBSERVER%" -Port %PORT%
+powershell -ExecutionPolicy Bypass -File "%WEBSERVER%" -Port %PORT% %COLD_FLAG%
+
+:: Subsequent loop iterations are warm restarts -- do NOT force re-login.
+set "COLD_FLAG="
 
 :: Check if restart was requested (exit code 1001)
 if %ERRORLEVEL% equ 1001 (

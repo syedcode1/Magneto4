@@ -5,20 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MAGNETO V4 - Living Off The Land Attack Simulator</title>
     <script>
-    (async () => {
+    // Expose the probe as a Promise so app.js can await it before
+    // running admin-visibility logic. Fire-and-forget would race with
+    // applyRoleVisibility() and wrongly hide Scheduler/Users for admins.
+    window.__MAGNETO_ME_PROMISE = (async () => {
         try {
             const r = await fetch('/api/auth/me', { credentials: 'include' });
             if (r.status === 401) {
                 window.location.replace('/login.html?expired=1');
-                return;
+                return null;
             }
             if (!r.ok) {
                 window.location.replace('/login.html');
-                return;
+                return null;
             }
-            window.__MAGNETO_ME = await r.json();
+            const me = await r.json();
+            window.__MAGNETO_ME = me;
+            return me;
         } catch (e) {
             window.location.replace('/login.html');
+            return null;
         }
     })();
     </script>
@@ -36,7 +42,7 @@
             <div class="header-left">
                 <div class="logo">
                     <span class="logo-icon">M</span>
-                    <span class="logo-text">MAGNETO<span class="version">V4</span></span>
+                    <span class="logo-text">MAGNETO<span class="version">V4.5</span></span>
                 </div>
                 <span class="tagline">Living Off The Land Attack Simulator</span>
             </div>
@@ -161,12 +167,6 @@
                                 <label>APT Campaign</label>
                                 <select id="quick-campaign" class="select-input">
                                     <option value="">Select Campaign...</option>
-                                    <option value="apt41">APT41 - Shadow Harvest</option>
-                                    <option value="lazarus">Lazarus - DEV#POPPER</option>
-                                    <option value="apt29">APT29 - GRAPELOADER</option>
-                                    <option value="apt28">APT28 - Fancy Bear</option>
-                                    <option value="fin7">FIN7 - Carbanak</option>
-                                    <option value="stealthfalcon">StealthFalcon - Project Raven</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -343,12 +343,6 @@
                                 <h3>Select Campaign</h3>
                                 <select id="exec-campaign" class="select-input">
                                     <option value="">Select APT Campaign...</option>
-                                    <option value="apt41">APT41 - Shadow Harvest</option>
-                                    <option value="lazarus">Lazarus - DEV#POPPER</option>
-                                    <option value="apt29">APT29 - GRAPELOADER</option>
-                                    <option value="apt28">APT28 - Fancy Bear Ops</option>
-                                    <option value="fin7">FIN7 - Carbanak</option>
-                                    <option value="stealthfalcon">StealthFalcon - Raven</option>
                                 </select>
                             </div>
 

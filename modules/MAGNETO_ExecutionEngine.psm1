@@ -6,7 +6,7 @@
     Executes techniques (TTPs) and streams output to WebSocket console in real-time.
 
 .NOTES
-    Version: 4.0.0
+    Version: 4.5.0
     Author: MAGNETO Development Team
 #>
 
@@ -262,9 +262,14 @@ function Invoke-CommandAsUser {
                 $encodedCommand = [Convert]::ToBase64String($bytes)
                 $wrappedCommand = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
 
+                # Pin -WorkingDirectory to %SystemRoot%; otherwise Start-Process inherits MAGNETO's CWD
+                # which may be a UNC share the impersonated user can't traverse -> "The directory name is invalid."
+                $safeCwd = if ($env:SystemRoot) { $env:SystemRoot } else { 'C:\Windows' }
+
                 $process = Start-Process -FilePath "powershell.exe" `
                     -ArgumentList $wrappedCommand `
                     -Credential $credential `
+                    -WorkingDirectory $safeCwd `
                     -WindowStyle Hidden `
                     -RedirectStandardOutput $stdOutFile `
                     -RedirectStandardError $stdErrFile `
