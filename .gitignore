@@ -50,6 +50,5 @@ Thumbs.db
 .planning/
 docs/892httpslogin.tailscale.comadmininv.txt
 
-# --- AI tooling instructions (Claude Code project guidance) ----------------
-# Used locally by Claude Code; not part of the customer-facing distribution.
+# --- Local tooling / AI assistant instructions (not part of distribution) -
 CLAUDE.md

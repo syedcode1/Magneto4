@@ -62,6 +62,6 @@ Describe 'Protect/Unprotect-Password' -Tag 'Unit','DPAPI' {
     }
 
     It 'documents the DPAPI CurrentUser cross-user portability limitation' {
-        Set-ItResult -Skipped -Because 'DPAPI CurrentUser scope is non-portable: blobs encrypted by user A cannot be decrypted by user B or on a different machine. Validated manually in multi-host integration; automated cross-user coverage is out of scope for Phase 1 (see CLAUDE.md data/users.json caveat).'
+        Set-ItResult -Skipped -Because 'DPAPI CurrentUser scope is non-portable: blobs encrypted by user A cannot be decrypted by user B or on a different machine. Validated manually in multi-host integration; automated cross-user coverage is out of scope.'
     }
 }
