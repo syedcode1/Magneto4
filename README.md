@@ -35,8 +35,10 @@ MAGNETO is a PowerShell-backed, web-UI-fronted tool for running authorized adver
 Open an **elevated PowerShell** prompt and run:
 
 ```powershell
-iex (irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1)
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex (irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1)
 ```
+
+The `Set-ExecutionPolicy Bypass -Scope Process -Force` only affects the current PowerShell window -- it does not change your machine's global script-execution policy.
 
 The installer:
 
@@ -49,21 +51,31 @@ The installer:
 
 After it finishes, the web UI opens at <http://localhost:8080>.
 
-#### Variants
+#### Variants (run inside an elevated PowerShell)
 
 ```powershell
 :: Custom install path
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -InstallPath 'C:\Tools\Magneto'
+Set-ExecutionPolicy Bypass -Scope Process -Force; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -InstallPath 'C:\Tools\Magneto'
 
 :: Pin a specific version
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -Version 'v4.5.0'
+Set-ExecutionPolicy Bypass -Scope Process -Force; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -Version 'v4.5.0'
 
 :: Skip the interactive admin-bootstrap (run -CreateAdmin yourself later)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -SkipAdminBootstrap
+Set-ExecutionPolicy Bypass -Scope Process -Force; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -SkipAdminBootstrap
 
 :: Skip the auto-launch prompt (just install, do not start)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -SkipLaunch
+Set-ExecutionPolicy Bypass -Scope Process -Force; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -SkipLaunch
 ```
+
+#### Run-from-cmd.exe one-liner (no PowerShell window required)
+
+Customers who only have `cmd.exe` open can use:
+
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iex (irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1)"
+```
+
+This spawns an isolated PowerShell child with the bypass and runs the installer in it.
 
 ### Manual install
 
