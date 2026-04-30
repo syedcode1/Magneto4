@@ -30,6 +30,43 @@ MAGNETO is a PowerShell-backed, web-UI-fronted tool for running authorized adver
 
 ## Install (new users)
 
+### Quick install -- one PowerShell line
+
+Open an **elevated PowerShell** prompt and run:
+
+```powershell
+iex (irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1)
+```
+
+The installer:
+
+1. Verifies PowerShell 5.1+ and .NET 4.7.2+.
+2. Queries GitHub for the latest release.
+3. Downloads `magneto-v<version>.zip` and verifies its SHA256 against the release notes.
+4. Extracts to `%USERPROFILE%\Magneto`.
+5. Prompts for admin username + password (one-time PBKDF2-hashed bootstrap stored in `data\auth.json`).
+6. Offers to launch MAGNETO immediately.
+
+After it finishes, the web UI opens at <http://localhost:8080>.
+
+#### Variants
+
+```powershell
+:: Custom install path
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -InstallPath 'C:\Tools\Magneto'
+
+:: Pin a specific version
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -Version 'v4.5.0'
+
+:: Skip the interactive admin-bootstrap (run -CreateAdmin yourself later)
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -SkipAdminBootstrap
+
+:: Skip the auto-launch prompt (just install, do not start)
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/syedcode1/Magneto4/main/scripts/Install-Magneto.ps1))) -SkipLaunch
+```
+
+### Manual install
+
 1. **Download the latest release zip** from <https://github.com/syedcode1/Magneto4/releases/latest>.
 2. **Extract** to a folder of your choice -- e.g. `C:\Tools\Magneto`.
 3. **Verify the SHA256** (printed on the release page) matches the downloaded zip:
@@ -41,7 +78,7 @@ MAGNETO is a PowerShell-backed, web-UI-fronted tool for running authorized adver
    cd C:\Tools\Magneto
    powershell -ExecutionPolicy Bypass -File .\MagnetoWebService.ps1 -CreateAdmin
    ```
-   You will be prompted for a username and password. The credentials are PBKDF2-hashed and stored in `data/auth.json`.
+   You will be prompted for a username and password. The credentials are PBKDF2-hashed and stored in `data\auth.json`.
 5. **Launch**:
    ```powershell
    .\Start_Magneto.bat
