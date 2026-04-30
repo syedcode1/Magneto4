@@ -127,15 +127,16 @@ jobs:
             BODY="See CHANGELOG.md for details."
           fi
           # Append the SHA256 line so the auto-update verifier in MAGNETO can
-          # parse it deterministically (`SHA256: <hex>`).
-          BODY="$BODY
-
----
-**Asset**: ${{ steps.zip.outputs.name }}
-**SHA256**: ${{ steps.zip.outputs.sha256 }}
-**Tag**: ${{ steps.ver.outputs.tag }}"
-          # Stash to a file so we can pass it via softprops/action-gh-release.
-          printf '%s\n' "$BODY" > release-notes.md
+          # parse it deterministically (the literal "SHA256:" prefix is what
+          # Invoke-MagnetoUpdateCheck regex-matches).
+          {
+            echo "$BODY"
+            echo ""
+            echo "---"
+            echo "**Asset**: ${{ steps.zip.outputs.name }}"
+            echo "**SHA256**: ${{ steps.zip.outputs.sha256 }}"
+            echo "**Tag**: ${{ steps.ver.outputs.tag }}"
+          } > release-notes.md
           echo "Release notes written to release-notes.md"
 
       - name: Create GitHub Release + upload zip
