@@ -7,7 +7,7 @@
     Provides REST API for technique management and real-time console streaming.
 
 .NOTES
-    Version: 4.5.1
+    Version: 4.5.2
     Author: MAGNETO Development Team
 #>
 
@@ -131,7 +131,7 @@ $script:StatusCacheTtlSeconds = 5
 # Public endpoints (`/api/health`, `/api/status`, `/api/system/version`) all
 # read from here so future bumps are a one-line edit.
 # ---------------------------------------------------------------------------
-$script:MagnetoVersion   = '4.5.1'
+$script:MagnetoVersion   = '4.5.2'
 $script:UpdateRepoOwner  = 'syedcode1'
 $script:UpdateRepoName   = 'Magneto4'
 # Cached result of the last GitHub /releases/latest poll. Populated by the
@@ -4561,6 +4561,13 @@ function Handle-APIRequest {
                         sha256 = $cache.Sha256
                     } -Initiator $script:CurrentSession.username
 
+                    # Top-level guard so any uncaught exception still produces a
+                    # structured JSON response that the frontend can surface --
+                    # otherwise a Save-MagnetoBackup or Write-MagnetoUpdateApplier
+                    # failure would propagate as a plain text 500 and the operator
+                    # would just see "Install failed: Install failed".
+                    $installStage = 'init'
+                    try {
                     # Synchronous portion: download + verify + extract + backup +
                     # write Apply-Update.ps1. The cross-process portion (file
                     # copy + relaunch) runs in a detached helper process.
@@ -4571,6 +4578,7 @@ function Handle-APIRequest {
                     $assetName = if ($cache.AssetName) { $cache.AssetName } else { "magneto-v$($cache.LatestVersion).zip" }
                     $zipPath   = Join-Path $stagingRoot $assetName
 
+                    $installStage = 'download'
                     try {
                         try {
                             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor `
@@ -4590,6 +4598,7 @@ function Handle-APIRequest {
                         break
                     }
 
+                    $installStage = 'sha256'
                     $actualSha = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToUpperInvariant()
                     if ($actualSha -ne $cache.Sha256.ToUpperInvariant()) {
                         $script:UpdateInProgress = $false
@@ -4601,6 +4610,7 @@ function Handle-APIRequest {
                         break
                     }
 
+                    $installStage = 'extract'
                     $extractDir = Join-Path $stagingRoot 'extracted'
                     try {
                         Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force -ErrorAction Stop
@@ -4627,6 +4637,7 @@ function Handle-APIRequest {
                     }
 
                     # Backup current install (best-effort -- do not block update on backup failure).
+                    $installStage = 'backup'
                     try {
                         $null = Save-MagnetoBackup
                     } catch {
@@ -4634,10 +4645,12 @@ function Handle-APIRequest {
                     }
 
                     # Generate the helper script.
+                    $installStage = 'helper-write'
                     $applyScript = Write-MagnetoUpdateApplier -TargetDir $PSScriptRoot -SourceDir $extractDir -Version $cache.LatestVersion
 
                     # Spawn helper detached. We pass arguments explicitly even though they
                     # are also baked into the script's defaults -- belt and suspenders.
+                    $installStage = 'helper-spawn'
                     $psArgs = @(
                         '-NoProfile',
                         '-ExecutionPolicy','Bypass',
@@ -4665,6 +4678,22 @@ function Handle-APIRequest {
                         from        = $script:MagnetoVersion
                         to          = $cache.LatestVersion
                         restartIn   = 5
+                    }
+                    }
+                    catch {
+                        # Top-level safety net for the install pipeline.
+                        $script:UpdateInProgress = $false
+                        $errMsg = $_.Exception.Message
+                        Write-Log "Update install failed at stage '$installStage': $errMsg" -Level Error
+                        Write-AuditLog -Action 'update.install.failed' -Details @{ stage=$installStage; error=$errMsg } -Initiator $script:CurrentSession.username
+                        try {
+                            $stagingRoot = Join-Path $PSScriptRoot 'update-staging'
+                            if (Test-Path $stagingRoot) { Remove-Item $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue }
+                        }
+                        # INTENTIONAL-SWALLOW: cleanup is best-effort
+                        catch { }
+                        $statusCode = 500
+                        $responseData = @{ success = $false; error = "Install failed at stage '$installStage': $errMsg"; stage = $installStage }
                     }
                 }
             }

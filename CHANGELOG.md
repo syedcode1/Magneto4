@@ -5,6 +5,12 @@ All notable changes to MAGNETO V4 are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.2] - 2026-05-05
+
+### Fixed
+
+- **Update install error visibility**: when `POST /api/system/update/install` failed mid-pipeline (download / SHA256 / extract / backup / helper-write / helper-spawn), the frontend swallowed the structured JSON body of the 4xx/5xx response and displayed the literal string "Install failed: Install failed". The shared `api()` wrapper now reads the response body regardless of status and hands the parsed JSON to callers, so `Settings -> Updates` now surfaces the actual cause (e.g. "Download failed: TLS handshake aborted", "SHA256 mismatch", "Save-MagnetoBackup: Access denied"). The install endpoint also gained a top-level try/catch with a `stage` label so an uncaught exception still produces a structured JSON 500 instead of propagating to the global text-body handler.
+
 ## [4.5.1] - 2026-05-05
 
 ### Fixed
@@ -95,5 +101,6 @@ First public release. Auth-hardened, in-app updateable, production-safe simulati
 - **DPAPI** for impersonation user passwords (CurrentUser scope; `users.json`
   cannot be decrypted by any other Windows account).
 
+[4.5.2]: https://github.com/syedcode1/Magneto4/releases/tag/v4.5.2
 [4.5.1]: https://github.com/syedcode1/Magneto4/releases/tag/v4.5.1
 [4.5.0]: https://github.com/syedcode1/Magneto4/releases/tag/v4.5.0

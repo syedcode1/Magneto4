@@ -1345,14 +1345,32 @@ class MagnetoApp {
                 return null;
             }
 
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
+            // Parse the body regardless of status so a structured 4xx/5xx response
+            // (e.g. { success:false, error:'real reason' }) reaches the caller
+            // instead of being swallowed by the generic catch below.
+            let bodyText = '';
+            try { bodyText = await response.text(); } catch (_) { bodyText = ''; }
+            let parsed = null;
+            if (bodyText) {
+                try { parsed = JSON.parse(bodyText); } catch (_) { parsed = null; }
             }
 
-            return await response.json();
+            if (!response.ok) {
+                if (parsed && typeof parsed === 'object') {
+                    // Hand the JSON body to the caller -- it has error/message text.
+                    if (parsed.success === undefined) { parsed.success = false; }
+                    parsed._httpStatus = response.status;
+                    console.error(`[API] ${response.status} ${endpoint}:`, parsed);
+                    return parsed;
+                }
+                console.error(`[API] ${response.status} ${endpoint}: ${bodyText.slice(0, 300)}`);
+                return { success: false, error: `HTTP ${response.status}` + (bodyText ? `: ${bodyText.slice(0, 300)}` : ''), _httpStatus: response.status };
+            }
+
+            return parsed;
         } catch (error) {
             console.error(`[API] Error calling ${endpoint}:`, error);
-            return null;
+            return { success: false, error: error?.message || String(error), _networkError: true };
         }
     }
 
