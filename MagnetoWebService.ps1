@@ -7,7 +7,7 @@
     Provides REST API for technique management and real-time console streaming.
 
 .NOTES
-    Version: 4.5.0
+    Version: 4.5.1
     Author: MAGNETO Development Team
 #>
 
@@ -131,7 +131,7 @@ $script:StatusCacheTtlSeconds = 5
 # Public endpoints (`/api/health`, `/api/status`, `/api/system/version`) all
 # read from here so future bumps are a one-line edit.
 # ---------------------------------------------------------------------------
-$script:MagnetoVersion   = '4.5.0'
+$script:MagnetoVersion   = '4.5.1'
 $script:UpdateRepoOwner  = 'syedcode1'
 $script:UpdateRepoName   = 'Magneto4'
 # Cached result of the last GitHub /releases/latest poll. Populated by the
@@ -2515,10 +2515,15 @@ function Get-UserRotationPhaseDecision {
     $daysSinceStart = ($Now - $startDate).Days
     if ($daysSinceStart -lt 0) { $daysSinceStart = 0 }
 
-    $baselineDays = $Config.baselineDays
-    $attackDays = $Config.attackDays
-    $cooldownDays = $Config.cooldownDays
+    # Defensive defaults: a freshly-bootstrapped smart-rotation.json may have
+    # an empty config block; without these guards the divisions below
+    # ($daysSinceStart / $cycleLength) throw "Attempted to divide by zero" and
+    # crash GET /api/smart-rotation + /plan before the dashboard can render.
+    $baselineDays = if ($Config.baselineDays -and [int]$Config.baselineDays -gt 0) { [int]$Config.baselineDays } else { 14 }
+    $attackDays   = if ($Config.attackDays   -and [int]$Config.attackDays   -gt 0) { [int]$Config.attackDays }   else { 10 }
+    $cooldownDays = if ($Config.cooldownDays -ne $null -and [int]$Config.cooldownDays -ge 0) { [int]$Config.cooldownDays } else { 6 }
     $cycleLength = $baselineDays + $attackDays + $cooldownDays
+    if ($cycleLength -le 0) { $cycleLength = 30 }   # ultimate belt-and-suspenders
 
     # Execution-based progression: Calculate minimum baseline TTPs required
     # Default: baselineDays * subsequentDaysCount (e.g., 14 * 3 = 42)

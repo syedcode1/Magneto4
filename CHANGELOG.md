@@ -5,6 +5,12 @@ All notable changes to MAGNETO V4 are documented in this file.
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.1] - 2026-05-05
+
+### Fixed
+
+- **Smart Rotation crash on fresh install**: `GET /api/smart-rotation` and `GET /api/smart-rotation/plan` returned `Attempted to divide by zero` when the `config` block in `data/smart-rotation.json` was empty (no `baselineDays` / `attackDays` / `cooldownDays` fields), which is the default state for a freshly bootstrapped install. `Get-UserRotationPhaseDecision` now defaults the three day-counters to the documented 14/10/6 when missing, with a belt-and-suspenders guard that pegs `cycleLength` to 30 if the sum is ever non-positive. New customers can now load the Scheduler tab on a clean install without errors.
+
 ## [4.5.0] - 2026-04-30
 
 First public release. Auth-hardened, in-app updateable, production-safe simulation tier model.
@@ -89,4 +95,5 @@ First public release. Auth-hardened, in-app updateable, production-safe simulati
 - **DPAPI** for impersonation user passwords (CurrentUser scope; `users.json`
   cannot be decrypted by any other Windows account).
 
+[4.5.1]: https://github.com/syedcode1/Magneto4/releases/tag/v4.5.1
 [4.5.0]: https://github.com/syedcode1/Magneto4/releases/tag/v4.5.0
